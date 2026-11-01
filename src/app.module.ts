@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -12,7 +12,12 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { SubscriptionGuard } from './common/guards/subscription.guard.js';
 import { ScopesGuard } from './common/guards/scopes.guard.js';
+import { LegacySerializerInterceptor } from './common/interceptors/legacy-serializer.interceptor.js';
+import { StripeModule } from './integrations/stripe/stripe.module.js';
+import { MailModule } from './integrations/mail/mail.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { BillingModule } from './modules/billing/billing.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 
 @Module({
@@ -59,11 +64,16 @@ import { CustomersModule } from './modules/customers/customers.module.js';
     // Mesmo limite que estava comentado no legado (1000 req/min)
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }]),
     PrismaModule,
+    StripeModule,
+    MailModule,
     HealthModule,
+    AuthModule,
+    BillingModule,
     CustomersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: LegacySerializerInterceptor },
     // A ordem importa: rate limit → autenticação → assinatura → escopos
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

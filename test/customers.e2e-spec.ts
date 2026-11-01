@@ -1,11 +1,8 @@
 import 'dotenv/config';
-import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import type { App } from 'supertest/types';
-import { AppModule } from '../src/app.module.js';
+import { createTestApp } from './support/app.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { Role } from '../src/common/enums/role.enum.js';
 import { Scope } from '../src/common/enums/scope.enum.js';
@@ -13,7 +10,7 @@ import { Scope } from '../src/common/enums/scope.enum.js';
 // Usa o banco do DATABASE_URL: cria um tenant temporário e o remove no final
 // (as FKs com ON DELETE CASCADE limpam clientes e usuários).
 describe('Customers (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let prisma: PrismaService;
   let tenantId: number;
   let adminToken: string;
@@ -23,14 +20,7 @@ describe('Customers (e2e)', () => {
   const phone = `9${Date.now().toString().slice(-10)}`;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication({ logger: false });
-    app.use(cookieParser());
-    app.setGlobalPrefix('api/v1');
-    await app.init();
+    app = await createTestApp();
 
     prisma = app.get(PrismaService);
     const jwt = app.get(JwtService);

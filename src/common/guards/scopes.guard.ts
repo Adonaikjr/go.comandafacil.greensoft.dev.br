@@ -27,7 +27,8 @@ export class ScopesGuard implements CanActivate {
       SCOPES_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!requiredScopes?.length) return true;
+    // Sem @Scopes → livre. @Scopes() vazio → só admin (igual a authorize([]))
+    if (!requiredScopes) return true;
 
     const { user: tokenUser } = context
       .switchToHttp()
