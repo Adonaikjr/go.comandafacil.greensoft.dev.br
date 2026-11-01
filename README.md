@@ -16,7 +16,11 @@ npm run start:dev
 - API: `http://localhost:3333/api/v1`
 - Swagger: `http://localhost:3333/docs` (JSON em `/docs/json`)
 - Scalar: `http://localhost:3333/reference`
-- Health: `http://localhost:3333/health`
+- Health: `http://localhost:3333/health` (banco + Redis)
+- Filas (Bull Board): `http://localhost:3333/admin/queues` (superadmin logado ou `BULL_BOARD_USER`/`BULL_BOARD_PASSWORD`)
+- Socket.IO: mesma porta da API
+
+Requer Redis (`docker compose up -d redis`) para filas e Socket.IO.
 
 ## Testes
 

@@ -309,16 +309,52 @@ Como os bancos são separados, o corte é feito de uma vez:
 ## 5. Checklist
 
 - [x] 0.1 Limpar o scaffold (nome do pacote, `.gitignore`, Observe, docker-compose, `.env.example`)
-- [ ] 0.1 Workspaces do monorepo raiz
-- [x] 0.2 Prisma 7 (baseline `0_init` + `1_store_details_pk_keeta`, adapter-mariadb)
-- [ ] 0.2 Extensão de multi-tenant
-- [x] 0.3 Infraestrutura comum (env, Zod pipe/decorators, filter, pino, throttler, health, Swagger/Scalar) + módulo `customers`
-- [x] Fase 1: guards e escopos (JWT, assinatura, escopos)
-- [ ] Fase 1: login, refresh, logout, recuperação de senha, Google OAuth, `SuperAdminGuard`
-- [ ] Fase 2: settings, menu, reservations, users
-- [ ] Fase 2: pos, orders, kitchen, invoices (com testes de concorrência)
-- [ ] Fase 2: qrmenu, dashboard, reports
-- [ ] Fase 3: gateway WebSocket autenticado + Redis adapter
-- [ ] Fase 4: filas BullMQ + Bull Board
-- [ ] Fase 5: superadmin, billing, blog, sitemap, ai, iFood, Keeta
-- [ ] Fase 6: proxy, testes comparativos, desligamento do legado
+- [ ] 0.1 Workspaces do monorepo raiz (outro repositório)
+- [x] 0.2 Prisma 7 (migrations `0_init`, `1_store_details_pk_keeta`, `2_ifood_tenant_int_fk`)
+- [ ] 0.2 Extensão de multi-tenant (adiada; `tenant_id` filtrado em cada service)
+- [x] 0.3 Infraestrutura comum + módulo `customers`
+- [x] Fase 1: auth completa, guards, escopos e `SuperAdminGuard`
+- [x] Fase 2: settings, menu, reservations, users
+- [x] Fase 2: pos, orders, kitchen, invoices
+- [x] Fase 2: qrmenu, dashboard, reports
+- [x] Fase 3: gateway WebSocket autenticado + Redis adapter
+- [x] Fase 4: filas BullMQ + Bull Board
+- [x] Fase 5: superadmin, billing, blog, sitemap, Gemini, iFood, Keeta
+- [ ] Fase 6: testes comparativos, migração de dados `pdv` → `comanda-facil`, corte
+
+---
+
+## 6. Resultado da migração de código (01/11/2026)
+
+**Cobertura:** as 136 rotas montadas no `app.js` do legado existem no `backend-new`, com os mesmos caminhos, verbos e formatos de resposta. A única exceção é `POST /api/v1/blog/sample-data`, uma rota pública de desenvolvimento que criava posts de exemplo e foi removida de propósito. A rota `stripe.routes.js` do legado não era montada no `app.js` e também não foi migrada.
+
+**Testes:** 17 testes unitários e 30 testes e2e (12 arquivos) contra o banco de dev, cobrindo todos os módulos.
+
+**Mudanças de comportamento em relação ao legado.** São correções de segurança ou de bugs; o formato das respostas não mudou:
+
+| Onde | Legado | Novo |
+|---|---|---|
+| `/users/*` (exceto `scopes` e `profile/photo`) | Qualquer usuário logado criava, editava e removia usuários | Só admin do tenant |
+| `/users/update/:id` | Apagava a foto do usuário | Mantém a foto |
+| `/blog/create` | Qualquer usuário logado de restaurante publicava no blog do site | Só superadmin |
+| `GET /gemini` | Público: qualquer pessoa disparava geração (e custo) no Gemini | Só superadmin; geração periódica via `BLOG_AI_CRON` |
+| `/kitchen/:id`, `/invoices/orders` | Não filtravam por tenant | Filtram por tenant |
+| Joins com `customers` | Sem filtro de tenant (pedido duplicado se o telefone existisse em outro restaurante) | Com filtro de tenant |
+| `/customers` (`filter`) | SQL injection | Parâmetros via Prisma |
+| `/auth/reset-password/:token` | O token continuava válido depois do uso | O token é apagado |
+| `/menu-items/update/:id/remove-photo` | Erro 500 (caminho do arquivo sem extensão) | Remove a imagem `.webp` |
+| `GET /menu-items/addons` e `/variants` | Inacessíveis (capturadas por `GET /:id`) | Funcionam |
+| `/blog/sitemap.xml` | Erro 500 (campos inexistentes) | Funciona |
+| QR menu (`place-order`) | Procurava o cliente pelo telefone em todos os tenants | Procura no tenant do QR code |
+| Webhook Stripe | Processado na própria requisição | Validado e enfileirado; reenvios não duplicam |
+| Senha diária do POS | Virava o dia em UTC | Vira o dia no horário de São Paulo |
+| Credenciais iFood/Keeta | `client_secret` em texto puro | Criptografado (AES-256-GCM); valores antigos continuam legíveis |
+
+**Convenção de datas:** a sessão MySQL roda com `time_zone = '-03:00'` e as colunas `DATETIME` guardam o horário de São Paulo (`src/common/utils/db-time.ts`). O banco `pdv` usa o horário do servidor (UTC+1). Na migração de dados é preciso subtrair 4 horas das colunas `DATETIME`/`TIMESTAMP` (exceto as colunas `DATE`).
+
+**Pendências antes do corte:**
+
+1. **Frontend e Socket.IO.** O frontend atual funciona sem mudanças (`SOCKET_LEGACY_AUTH=true`, `REALTIME_SERVER_EVENTS=false`). Para fechar a brecha de qualquer cliente entrar na sala de outro tenant, o frontend precisa conectar com `withCredentials: true` (ou `auth: { token }`). Depois disso, configurar `SOCKET_LEGACY_AUTH=false`. Com `REALTIME_SERVER_EVENTS=true`, o backend passa a emitir os eventos sozinho, e o frontend deve parar de emitir os `*_backend`.
+2. **Keeta.** Os endpoints da API continuam os placeholders do legado. É preciso conferir na documentação oficial (`KEETA_API_BASE` e os caminhos em `keeta.provider.ts`).
+3. **Script de migração de dados** `pdv` → `comanda-facil` (Fase 6): ajuste de fuso, `ifood_*.tenant_id` para `INT` e `store_details` sem `tenant_id`.
+4. **Chaves de teste.** Trocar no `.env` de dev as chaves reais do Stripe e do SMTP por chaves de teste.
