@@ -24,18 +24,17 @@ export class AuthCookiesService {
     );
   }
 
+  // `crossSite: false` reproduz os cookies do login de superadmin do legado
   setLoginCookies(
     res: Response,
     accessToken: string,
     refreshToken: string,
     refreshExpiry: Date,
+    { crossSite = true } = {},
   ) {
-    const base: CookieOptions = {
-      domain: this.domain,
-      sameSite: 'none',
-      secure: true,
-      path: '/',
-    };
+    const base: CookieOptions = crossSite
+      ? { domain: this.domain, sameSite: 'none', secure: true, path: '/' }
+      : { domain: this.domain, secure: this.isProduction, path: '/' };
     res.cookie('accessToken', accessToken, {
       ...base,
       httpOnly: true,

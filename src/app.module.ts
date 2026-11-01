@@ -28,6 +28,7 @@ import { OrdersModule } from './modules/orders/orders.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { QrMenuModule } from './modules/qrmenu/qrmenu.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
+import { SuperadminModule } from './modules/superadmin/superadmin.module.js';
 import { StorageModule } from './integrations/storage/storage.module.js';
 
 @Module({
@@ -89,6 +90,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     OrdersModule,
     ReportsModule,
     QrMenuModule,
+    SuperadminModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
