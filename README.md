@@ -22,6 +22,41 @@ npm run start:dev
 
 Requer Redis (`docker compose up -d redis`) para filas e Socket.IO.
 
+## Deploy no CloudPanel
+
+O workflow `.github/workflows/deploy.yml` publica automaticamente após um push
+na branch `main` (ou manualmente pela aba Actions). Ele compila e envia somente
+os arquivos da aplicação; `.env` não é enviado pelo workflow nem versionado.
+
+Na primeira configuração:
+
+1. Confirme que o usuário de site do CloudPanel tem Node.js 22, npm e acesso SSH.
+2. No diretório raiz local, rode `bash deploy/bootstrap-vps.sh`. Informe a senha
+   SSH quando solicitada. O script copia o `.env` local diretamente para a VPS,
+   ajusta `PORT=5000`, restringe as permissões do arquivo e prepara o PM2.
+3. Se o script imprimir um comando `sudo`, execute-o uma vez na VPS para
+   registrar o serviço PM2 do usuário no systemd. Esse passo é necessário para
+   o PM2 iniciar após uma reinicialização do servidor.
+4. No GitHub, cadastre a chave privada gerada em
+   `~/.ssh/comandafacil-vps-deploy` como Actions secret
+   `VPS_SSH_PRIVATE_KEY`. Por exemplo:
+   `gh secret set VPS_SSH_PRIVATE_KEY < ~/.ssh/comandafacil-vps-deploy`.
+   Cadastre também `VPS_KNOWN_HOSTS` como Actions variable. Ela deve conter a
+   chave pública SSH retornada por
+   `ssh-keyscan -p 22 comandafacil.greensoft.dev.br`; confira a impressão
+   digital dessa chave por um canal confiável antes de salvá-la. Para
+   cadastrá-la com o GitHub CLI:
+   `gh variable set VPS_KNOWN_HOSTS --body "$(ssh-keyscan -p 22 comandafacil.greensoft.dev.br)"`.
+5. Faça o primeiro deploy pela aba Actions ou envie um commit para `main`.
+
+O deploy instala as dependências de produção, inicia/recarrega a aplicação no
+PM2 e executa `pm2 save`. O arquivo `.env` permanece no servidor e não é
+removido pelo `rsync`. O CloudPanel deve encaminhar o domínio para a porta 5000.
+
+O deploy usa uma chave SSH dedicada, sem senha SSH armazenada no workflow.
+Rotacione senhas/chaves que tenham sido compartilhadas em mensagens ou
+terminais.
+
 ## Testes
 
 ```bash

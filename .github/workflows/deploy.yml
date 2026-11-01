@@ -1,0 +1,79 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VPS_HOST: comandafacil.greensoft.dev.br
+      VPS_USER: dev-comandafacil-greensoft
+      VPS_PORT: "22"
+      VPS_PATH: /home/dev-comandafacil-greensoft/htdocs/comandafacil.greensoft.dev.br
+      VPS_KNOWN_HOSTS: ${{ vars.VPS_KNOWN_HOSTS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Install deployment tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes rsync
+
+      - name: Deploy
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "$VPS_SSH_PRIVATE_KEY" || -z "$VPS_KNOWN_HOSTS" ]]; then
+            echo "Configure the VPS_SSH_PRIVATE_KEY secret and VPS_KNOWN_HOSTS variable." >&2
+            exit 1
+          fi
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$HOME/.ssh/vps_deploy"
+          chmod 600 "$HOME/.ssh/vps_deploy"
+          unset VPS_SSH_PRIVATE_KEY
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          SSH_OPTIONS="-i $HOME/.ssh/vps_deploy -p $VPS_PORT -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_PATH'"
+
+          rsync --archive --compress \
+            --exclude='.env' \
+            --exclude='logs/' \
+            -e "ssh $SSH_OPTIONS" \
+            dist/ public/ prisma/ package.json package-lock.json ecosystem.config.cjs \
+            "$VPS_USER@$VPS_HOST:$VPS_PATH/"
+
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_PATH' && npm ci --omit=dev --ignore-scripts && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
