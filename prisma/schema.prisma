@@ -284,18 +284,20 @@ model qr_orders {
 
 model refresh_tokens {
   username        String    @db.VarChar(255)
-  refresh_token   String    @db.VarChar(500)
+  /// JWT completo; o payload inclui os escopos e passa de 500 caracteres
+  refresh_token   String    @db.VarChar(2048)
   device_ip       String?   @db.VarChar(50)
   device_name     String?   @db.VarChar(255)
   device_location String?   @db.VarChar(255)
   created_at      DateTime? @default(now()) @db.DateTime(0)
   expiry          DateTime? @db.DateTime(0)
-  device_id       Int       @default(autoincrement())
+  device_id       Int       @id @default(autoincrement())
   tenant_id       Int?
   tenants         tenants?  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "refresh_tokens_ibfk_1")
 
-  @@id([device_id, username, refresh_token])
   @@index([tenant_id], map: "tenant_id")
+  @@index([username], map: "refresh_tokens_username_idx")
+  @@index([refresh_token(length: 191)], map: "refresh_tokens_token_idx")
 }
 
 model reservations {
