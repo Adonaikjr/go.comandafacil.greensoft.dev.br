@@ -1,0 +1,26 @@
+# Infra local. O MySQL de desenvolvimento é o remoto (dev-db.greensoft.dev.br);
+# o serviço `mysql` abaixo só sobe com `docker compose --profile local-db up`.
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
+  mysql:
+    image: mysql:8.4
+    profiles: ['local-db']
+    environment:
+      MYSQL_DATABASE: comanda-facil
+      MYSQL_USER: comanda-facil
+      MYSQL_PASSWORD: comanda-facil
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  redis-data:
+  mysql-data:

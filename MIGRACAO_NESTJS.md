@@ -67,15 +67,19 @@ O legado continua em produção até o corte final (Fase 6). Todo o código novo
 
 ## Estratégia
 
-O `backend-new` usa **o mesmo banco** do legado e mantém **o mesmo contrato da API**:
+O `backend-new` mantém **o mesmo contrato da API** do legado:
 
 - prefixo `/api/v1/...`;
-- formato de resposta `{ success, message, data }`;
+- **as mesmas respostas, campo a campo**. O legado não tem um envelope único: listagens devolvem o objeto direto (por exemplo `{ customers, currentPage, ... }`), ações devolvem `{ success, message }` e erros devolvem `{ success: false, message }`. Datas saem como texto (`"2026-11-01"` / `"2026-11-01 14:30:00"`) e booleanos de `TINYINT` como `0`/`1`;
 - mesmos cookies e mesmo payload do JWT.
 
-Assim o frontend (`green-food`) não precisa mudar. A troca é feita módulo a módulo com um proxy reverso na frente. A ideia é **não fazer** uma troca única de tudo de uma vez.
+Assim o frontend (`green-food`) não precisa mudar.
 
-**Quem cuida do schema:** a partir da Fase 0, o `backend-new` passa a ser o **único** responsável pelas migrations do Prisma. O legado só roda `prisma generate`, nunca `migrate`.
+**Bancos separados:** o `backend-new` usa um banco próprio (`comanda-facil` em `dev-db.greensoft.dev.br`), e o legado continua no banco `pdv`. O schema do banco novo começou como cópia exata do schema do `pdv` (migration `0_init`). Com isso:
+
+- as migrations do Prisma ficam só no `backend-new`;
+- não dá para dividir as rotas entre os dois backends em produção, porque cada um gravaria num banco. O corte (Fase 6) é feito de uma vez, com uma **migração de dados** do `pdv` para o banco novo;
+- até lá, o `backend-new` é validado em dev/homologação, apontando o frontend para ele.
 
 ---
 
@@ -127,11 +131,11 @@ backend-new/
     app.module.ts
     generated/prisma/        # saída do generator prisma-client (fica no .gitignore)
     config/                  # env.schema.ts (Zod) + ConfigModule
-    prisma/                  # PrismaService (global, adapter-mariadb) + extensão de multi-tenant
+    prisma/                  # PrismaService (global, adapter-mariadb)
     common/
       guards/                # JwtAuthGuard, SubscriptionGuard, ScopesGuard, RolesGuard, SuperAdminGuard
       decorators/            # @CurrentUser(), @TenantId(), @Scopes(), @Public(), @ZodBody(), @ZodResponse()
-      interceptors/          # ResponseInterceptor → { success, message, data }
+      utils/                 # formatação no padrão do legado (datas, 0/1)
       filters/               # exception filter global (Prisma/Zod → HTTP)
       pipes/                 # ZodValidationPipe
     modules/
@@ -177,50 +181,46 @@ Cada módulo contém:
 
 ### Fase 0: Fundação (cerca de 1 semana)
 
+> **Status (01/11/2026): concluída**, com exceção dos itens marcados como pendentes.
+
 **0.1 Limpar o scaffold**
 
-1. Apagar a pasta `backend-new/.git`.
-2. Renomear o pacote para `@greenfood/api`.
-3. Adicionar `.env*` (com exceção de `.env.example`) e `src/generated/` ao `.gitignore`.
-4. Remover o `@nestjs/observe`, tanto do `AppModule` e do `main.ts` quanto das dependências.
-5. Remover `AppController` e `AppService`, que são só de exemplo.
-6. Atualizar os workspaces no `package.json` da raiz do monorepo e conferir se o `turbo run dev` sobe os dois backends.
-7. Criar o `docker-compose.yml` com MySQL 8 e Redis 7, e o `.env.example` baseado em `backend-legado/src/config/index.js`.
+1. ✅ Apagar a pasta `backend-new/.git`. *Mudou:* o `backend-new` passou a ser um repositório próprio (`Adonaikjr/go.comandafacil.greensoft.dev.br`), então o `.git` foi mantido.
+2. ✅ Renomear o pacote para `@greenfood/api`.
+3. ✅ Adicionar `.env*` (com exceção de `.env.example`) e `src/generated/` ao `.gitignore`.
+4. ✅ Remover o `@nestjs/observe` e o `@nestjs/mau`.
+5. ✅ Remover `AppController` e `AppService`.
+6. ⏳ Atualizar os workspaces no `package.json` da raiz do monorepo (`pdv.greensoft.dev.br`). Pendente: esse arquivo é de outro repositório.
+7. ✅ Criar o `docker-compose.yml` (Redis; MySQL local opcional com `--profile local-db`) e o `.env.example`.
 
 **0.2 Prisma 7**
 
-1. Instalar `prisma@7.10` e `@prisma/client@7.10`. Configurar o `prisma.config.ts` e o generator `prisma-client` com `output = "../src/generated/prisma"`.
-2. Gerar o schema completo a partir do banco real, incluindo `page_visitors`:
-   1. Rodar `prisma db pull` contra uma cópia do banco de produção.
-   2. Comparar o resultado com `backend-legado/prisma/schema.prisma`.
-   3. Marcar o estado atual como baseline com `prisma migrate resolve --applied 0_init`.
-   4. Converter os `.sql` de `backend-legado/src/migrations/` em migrations do Prisma.
-3. Criar o `PrismaService` com `@prisma/adapter-mariadb`, injetado de forma global.
-4. Criar a **extensão Prisma de multi-tenant**. Ela lê o `tenantId` do `nestjs-cls` e o aplica automaticamente nas queries dos modelos que têm `tenant_id`.
+1. ✅ `prisma`, `@prisma/client` e `@prisma/adapter-mariadb` fixados em 7.10.1, com `prisma.config.ts` e o generator `prisma-client` (ESM) gerando em `src/generated/prisma`.
+2. ✅ Schema criado a partir do banco real:
+   1. Schema (sem dados) exportado do banco `pdv` com `mysqldump --no-data`. Ele já inclui `page_visitors`, `plan_type` e `trial_started_at`, então os `.sql` de `backend-legado/src/migrations/` não precisam ser convertidos.
+   2. Esse dump virou a migration `0_init`, aplicada no banco novo. Em seguida, `prisma db pull` gerou o `schema.prisma`.
+   3. Migration `1_store_details_pk_keeta`: `store_details.tenant_id` passou a ser chave primária (antes a tabela ficava fora do Prisma, com `@@ignore`), e foram criadas `keeta_credentials` e `keeta_orders`, que ainda não existiam no `pdv`.
+   4. Diferenças encontradas entre o `schema.prisma` do legado e o banco real: no banco, `ifood_credentials.tenant_id` e `ifood_orders.tenant_id` são `VARCHAR` e não têm FK, e existem as tabelas `ifood_auth_tokens` e `ifood_catalog_mapping`. Isso foi mantido igual ao banco e deve ser corrigido na Fase 5.
+3. ✅ `PrismaService` global com `@prisma/adapter-mariadb`.
+4. ⏳ **Extensão Prisma de multi-tenant: adiada.** Várias tabelas têm chave composta com `tenant_id` (`customers`, `invoices`), e a extensão não cobre `findUnique`/`update` por chave composta. Por enquanto, os services recebem o `tenantId` (decorator `@TenantId()`) e o filtram explicitamente. O `nestjs-cls` já guarda o `tenantId` e o `username` da requisição, para quando a extensão for feita.
 
 **0.3 Infraestrutura comum**
 
-1. Validar o env com Zod no `ConfigModule`. A aplicação não sobe se faltar `DATABASE_URL`, `JWT_SECRET`, `REDIS_URL`, `STRIPE_*` etc.
-2. Criar o `ZodValidationPipe` e os decorators `@ZodBody` e `@ZodResponse` (Zod 4 → `z.toJSONSchema()` → Swagger).
-3. Criar o `ResponseInterceptor` e o exception filter global, compatíveis com o formato atual.
-4. Configurar o `main.ts`:
-   - `rawBody: true` (para o Stripe);
-   - `helmet` e `cookie-parser`;
-   - CORS com a mesma whitelist do legado;
-   - `setGlobalPrefix('api/v1')`.
-5. Configurar `nestjs-pino`, `@nestjs/throttler` e `@nestjs/terminus` (`/health`).
-6. Publicar a documentação Swagger e Scalar em `/docs`.
-7. Criar um módulo de exemplo, `customers` (6 rotas, sem dependências), já com teste unitário e teste e2e. Ele serve de referência para todos os outros módulos.
+1. ✅ Env validado com Zod (`src/config/env.schema.ts`).
+2. ✅ `ZodValidationPipe` e os decorators `@ZodBody`, `@ZodQuery` e `@ZodResponse` (Zod 4 → `z.toJSONSchema({ target: 'openapi-3.0' })` → Swagger).
+3. ✅ Exception filter global (`{ success: false, message }`). *Mudou:* **não existe `ResponseInterceptor`**, porque o legado não usa um envelope único. Cada controller devolve exatamente o formato da rota antiga.
+4. ✅ `main.ts`: `rawBody`, `helmet`, `cookie-parser`, CORS (`FRONTEND_DOMAIN` + `CORS_EXTRA_ORIGINS`), prefixo `api/v1` (sem prefixo: `/health` e `/sitemap.xml`).
+5. ✅ `nestjs-pino` (redige `authorization` e `cookie`), `@nestjs/throttler` (1000 req/min) e `@nestjs/terminus` (`/health`, com ping no banco).
+6. ✅ Swagger em `/docs` (JSON em `/docs/json`) e Scalar em `/reference`.
+7. ✅ Módulo `customers` com as 6 rotas do legado, testes e2e (`test/customers.e2e-spec.ts`) e testes unitários do guard e do pipe.
+
+**Adiantado da Fase 1:** os guards globais `JwtAuthGuard`, `SubscriptionGuard` e `ScopesGuard` e os decorators `@Public()`, `@SkipSubscription()`, `@Scopes()`, `@CurrentUser()` e `@TenantId()` já estão prontos. Eles aceitam os tokens emitidos pelo legado (mesmo `JWT_SECRET` e mesmo `issuer`).
 
 ### Fase 1: Autenticação e acesso (cerca de 1 semana)
 
-- **Fluxos:** login, refresh, logout, recuperação de senha e Google OAuth, com os mesmos nomes de cookie e o mesmo payload do JWT. Assim os tokens emitidos pelo legado continuam válidos durante a convivência.
-- **Guards:**
-  - `JwtAuthGuard`: global, com `@Public()` para as rotas abertas;
-  - `SubscriptionGuard`: assinatura ativa ou trial de 14 dias;
-  - `ScopesGuard`: usado como `@Scopes(Scope.POS)`, com um enum TS baseado em `backend-legado/src/config/user.config.js`;
-  - `SuperAdminGuard`.
-- **Ajuste de segurança:** o access token não deve ser registrado em log. Hoje `auth.middleware.js` faz isso.
+- **Fluxos:** login, refresh, logout, recuperação de senha e Google OAuth, com os mesmos nomes de cookie e o mesmo payload do JWT.
+- **Guards:** ✅ `JwtAuthGuard`, ✅ `SubscriptionGuard` e ✅ `ScopesGuard` (feitos na Fase 0). Falta o `SuperAdminGuard`.
+- **Ajuste de segurança:** ✅ o access token não é registrado em log.
 
 ### Fase 2: Domínio principal (2 a 3 semanas)
 
@@ -268,13 +268,22 @@ A ordem segue as dependências entre os módulos:
 - `superadmin`.
 - `billing`: Stripe, usando o `rawBody` já habilitado no `main.ts`.
 - `blog`, `sitemap`, `ai`.
-- Integrações iFood e Keeta, com as credenciais criptografadas usando `ENCRYPTION_KEY`.
+- Integrações iFood e Keeta, com as credenciais criptografadas usando `ENCRYPTION_KEY`. Corrigir `ifood_credentials.tenant_id` e `ifood_orders.tenant_id` para `INT` com FK para `tenants`.
 
 ### Fase 6: Corte e desligamento (cerca de 1 semana)
 
-1. Colocar um proxy reverso (Nginx ou Caddy) na frente e direcionar as rotas para o `backend-new` **módulo a módulo**, conforme cada um for validado. As rotas que ainda não migraram continuam indo para o `backend-legado`.
-2. Rodar testes e2e que comparam as respostas dos dois backends nas rotas críticas.
-3. Desligar o `backend-legado`, remover a pasta e tirá-la dos workspaces do monorepo.
+Como os bancos são separados, o corte é feito de uma vez:
+
+1. Rodar testes e2e que comparam as respostas dos dois backends nas rotas críticas (cada um no seu banco, com os mesmos dados de teste).
+2. Preparar e ensaiar o **script de migração de dados** `pdv` → `comanda-facil`:
+   - copiar as tabelas na ordem das FKs, mantendo os IDs e os valores de `AUTO_INCREMENT`;
+   - converter `ifood_*.tenant_id` de `VARCHAR` para `INT`;
+   - tratar as linhas de `store_details` com `tenant_id` nulo, que deixaram de ser aceitas.
+3. Na janela de manutenção:
+   1. Colocar o legado em modo somente leitura.
+   2. Rodar a migração de dados e conferir a contagem de linhas por tabela.
+   3. Apontar o domínio da API e o webhook do Stripe para o `backend-new`.
+4. Manter o legado parado (sem apagar) por algumas semanas como plano de volta. Depois, remover a pasta.
 
 **Estimativa total:** 8 a 10 semanas para uma pessoa em tempo integral. Com as Fases 0 e 1 prontas, os módulos podem ser divididos entre várias pessoas.
 
@@ -284,9 +293,11 @@ A ordem segue as dependências entre os módulos:
 
 - **Nest 12 é recente:** parte das bibliotecas ainda não declara suporte. `nestjs-zod` foi substituído por um pipe próprio. Qualquer biblioteca nova passa pela checagem de `peerDependencies`.
 - **ESM:** os imports relativos precisam terminar em `.js`. Bibliotecas que só funcionam com CommonJS são usadas por `import` default e precisam de teste.
-- **Prisma 7 com o legado no 6:** os dois usam o mesmo banco sem conflito, porque apenas o `backend-new` roda migrations. O client 6 do legado só precisa de `prisma generate` quando o schema mudar.
+- **Bancos separados:** o legado (`pdv`) e o novo (`comanda-facil`) não compartilham dados. Mudanças de schema feitas no `pdv` durante a migração precisam ser repetidas como migration no `backend-new`, senão a migração de dados da Fase 6 quebra.
+- **Banco de dev remoto:** cada query leva centenas de milissegundos, e os testes e2e demoram cerca de 25 s. Se isso atrapalhar, usar o MySQL local do `docker-compose` (`--profile local-db`).
+- **`prisma migrate dev`:** não funciona, porque o usuário do banco de dev não tem permissão para criar o shadow database. As migrations são geradas com `prisma migrate diff` (ver o README).
 - **SQL direto → Prisma:** os CRUDs passam para o ORM. Relatórios e locks ficam em `$queryRaw` tipado ou TypedSQL.
-- **Multi-tenant:** a extensão Prisma com CLS evita vazar dados entre restaurantes por esquecimento de `WHERE tenant_id`.
+- **Multi-tenant:** por enquanto o `tenant_id` é filtrado explicitamente em cada service. A extensão Prisma com CLS (que evita esquecer o `WHERE tenant_id`) fica para depois. Até lá, todo teste e2e precisa verificar que um tenant não enxerga os dados de outro.
 - **Datas:** hoje o legado usa `dateStrings=true` e compara datas com `toISOString()`, que é UTC. Por isso a senha diária pode zerar no horário errado no Brasil. A correção é padronizar o fuso em `America/Sao_Paulo`.
 - **Contrato da API:** gerar a especificação OpenAPI. Como passo opcional, criar um client tipado para o frontend com `orval` ou `openapi-typescript`.
 - **Infraestrutura:** o Redis passa a ser uma dependência obrigatória em produção.
@@ -297,10 +308,13 @@ A ordem segue as dependências entre os módulos:
 
 ## 5. Checklist
 
-- [ ] 0.1 Limpar o scaffold (`.git` interno, nome do pacote, `.gitignore`, Observe, workspaces, docker-compose)
-- [ ] 0.2 Prisma 7 (baseline, adapter-mariadb, multi-tenant)
-- [ ] 0.3 Infraestrutura comum (env, Zod pipe, interceptor, filter, pino, throttler, health, Swagger) + módulo `customers` de referência
-- [ ] Fase 1: auth, guards e escopos
+- [x] 0.1 Limpar o scaffold (nome do pacote, `.gitignore`, Observe, docker-compose, `.env.example`)
+- [ ] 0.1 Workspaces do monorepo raiz
+- [x] 0.2 Prisma 7 (baseline `0_init` + `1_store_details_pk_keeta`, adapter-mariadb)
+- [ ] 0.2 Extensão de multi-tenant
+- [x] 0.3 Infraestrutura comum (env, Zod pipe/decorators, filter, pino, throttler, health, Swagger/Scalar) + módulo `customers`
+- [x] Fase 1: guards e escopos (JWT, assinatura, escopos)
+- [ ] Fase 1: login, refresh, logout, recuperação de senha, Google OAuth, `SuperAdminGuard`
 - [ ] Fase 2: settings, menu, reservations, users
 - [ ] Fase 2: pos, orders, kitchen, invoices (com testes de concorrência)
 - [ ] Fase 2: qrmenu, dashboard, reports

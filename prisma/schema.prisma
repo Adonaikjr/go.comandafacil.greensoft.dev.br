@@ -1,0 +1,538 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model BlogPost {
+  id         String     @id
+  slug       String     @unique
+  title      String     @db.VarChar(255)
+  excerpt    String     @db.Text
+  content    String     @db.LongText
+  author     String     @db.VarChar(255)
+  date       DateTime
+  readTime   String     @db.VarChar(50)
+  category   String     @db.VarChar(100)
+  featured   Boolean    @default(false)
+  views      Int        @default(0)
+  image      String     @db.VarChar(500)
+  created_at DateTime   @default(now())
+  updated_at DateTime
+  BlogTags   BlogTags[] @relation("BlogPostTags")
+}
+
+model BlogTags {
+  id         String     @id
+  name       String     @unique
+  created_at DateTime   @default(now())
+  updated_at DateTime
+  BlogPost   BlogPost[] @relation("BlogPostTags")
+}
+
+model categories {
+  id        Int      @id @default(autoincrement())
+  title     String?  @db.VarChar(100)
+  tenant_id Int?
+  tenants   tenants? @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "categories_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model customers {
+  phone      String            @db.VarChar(20)
+  name       String            @db.VarChar(255)
+  email      String?           @db.VarChar(255)
+  birth_date DateTime?         @db.Date
+  gender     customers_gender?
+  is_member  Boolean?          @default(false)
+  created_at DateTime?         @default(now()) @db.DateTime(0)
+  update_at  DateTime?         @default(now()) @db.DateTime(0)
+  tenant_id  Int
+  tenants    tenants           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "customers_ibfk_1")
+
+  @@id([phone, tenant_id])
+  @@index([tenant_id], map: "customers_ibfk_1")
+}
+
+model exchange_rates {
+  currency_code String   @id @db.VarChar(5)
+  rate_to_usd   Decimal? @db.Decimal(10, 6)
+}
+
+model ifood_auth_tokens {
+  id                          Int       @id @default(autoincrement())
+  tenant_id                   Int       @unique(map: "uq_ifood_tokens_tenant")
+  access_token                String?   @db.Text
+  refresh_token               String?   @db.Text
+  authorization_code_verifier String?   @db.Text
+  user_code                   String?   @db.VarChar(50)
+  verification_url_complete   String?   @db.Text
+  expires_at                  BigInt?
+  created_at                  DateTime? @default(now()) @db.Timestamp(0)
+  updated_at                  DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model ifood_catalog_mapping {
+  id             Int                              @id @default(autoincrement())
+  tenant_id      Int
+  local_type     ifood_catalog_mapping_local_type
+  local_id       Int
+  ifood_id       String?                          @db.VarChar(255)
+  last_synced_at DateTime?                        @default(now()) @db.Timestamp(0)
+
+  @@unique([tenant_id, local_type, local_id], map: "uq_mapping")
+}
+
+model ifood_credentials {
+  id            Int       @id @default(autoincrement())
+  tenant_id     String    @unique(map: "uq_ifood_credentials_tenant") @db.VarChar(255)
+  client_id     String    @db.VarChar(500)
+  client_secret String    @db.VarChar(500)
+  merchant_id   String    @db.VarChar(255)
+  is_active     Boolean   @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model ifood_orders {
+  id             Int       @id @default(autoincrement())
+  ifood_order_id String    @db.VarChar(255)
+  tenant_id      String    @db.VarChar(255)
+  customer_name  String?   @db.VarChar(255)
+  total          Decimal   @default(0.00) @db.Decimal(10, 2)
+  status         String    @default("PLACED") @db.VarChar(100)
+  raw_data       String?   @db.LongText
+  created_at     DateTime? @default(now()) @db.Timestamp(0)
+
+  @@unique([ifood_order_id, tenant_id], map: "uq_ifood_order_tenant")
+}
+
+model invoice_sequences {
+  tenant_id   Int     @id
+  sequence_no Int?
+  tenants     tenants @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "invoice_sequences_ibfk_1")
+}
+
+model invoices {
+  id         Int
+  created_at DateTime? @default(now()) @db.DateTime(0)
+  sub_total  Decimal?  @db.Decimal(10, 2)
+  tax_total  Decimal?  @db.Decimal(10, 2)
+  total      Decimal?  @db.Decimal(10, 2)
+  tenant_id  Int
+  tenants    tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "invoices_ibfk_1")
+
+  @@id([id, tenant_id])
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model menu_item_addons {
+  id         Int        @default(autoincrement())
+  item_id    Int
+  title      String     @db.VarChar(255)
+  price      Decimal    @default(0.00) @db.Decimal(10, 2)
+  tenant_id  Int?
+  menu_items menu_items @relation(fields: [item_id], references: [id], onDelete: Cascade, map: "fk_addon_menu_item")
+  tenants    tenants?   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "menu_item_addons_ibfk_1")
+
+  @@id([id, item_id])
+  @@index([item_id], map: "fk_menu_item_idx")
+  @@index([item_id], map: "fk_menu_item_idx_index")
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model menu_item_variants {
+  id         Int        @default(autoincrement())
+  item_id    Int
+  title      String     @db.VarChar(255)
+  price      Decimal    @default(0.00) @db.Decimal(10, 2)
+  tenant_id  Int?
+  menu_items menu_items @relation(fields: [item_id], references: [id], onDelete: Cascade, map: "fk_variant_menu_item_id")
+  tenants    tenants?   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "menu_item_variants_ibfk_1")
+
+  @@id([id, item_id])
+  @@index([item_id], map: "fk_variant_menu_item_id_idx")
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model menu_items {
+  id                 Int                  @id @default(autoincrement())
+  title              String?              @db.VarChar(255)
+  price              Decimal?             @db.Decimal(10, 2)
+  net_price          Decimal?             @db.Decimal(10, 2)
+  tax_id             Int?
+  image              String?              @db.VarChar(2000)
+  category           Int?
+  tenant_id          Int?
+  menu_item_addons   menu_item_addons[]
+  menu_item_variants menu_item_variants[]
+  tenants            tenants?             @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "menu_items_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model order_items {
+  id         Int                 @id @default(autoincrement())
+  order_id   Int?
+  item_id    Int?
+  variant_id Int?
+  price      Decimal?            @db.Decimal(10, 2)
+  quantity   Int?
+  status     order_items_status? @default(created)
+  date       DateTime?           @default(now()) @db.DateTime(0)
+  notes      String?             @db.VarChar(255)
+  addons     String?             @db.MediumText
+  tenant_id  Int?
+  tenants    tenants?            @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "order_items_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model orders {
+  id             Int                    @id @default(autoincrement())
+  date           DateTime?              @default(now()) @db.DateTime(0)
+  delivery_type  String?                @db.VarChar(90)
+  customer_type  orders_customer_type?  @default(WALKIN)
+  customer_id    String?                @db.VarChar(20)
+  table_id       Int?
+  status         orders_status?         @default(created)
+  token_no       Int?
+  payment_status orders_payment_status? @default(pending)
+  invoice_id     Int?
+  tenant_id      Int?
+  tenants        tenants?               @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "orders_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model page_visitors {
+  id                Int       @id @default(autoincrement())
+  page              String    @default("sales") @db.VarChar(100)
+  ip_address        String?   @db.VarChar(45)
+  user_agent        String?   @db.Text
+  referrer          String?   @db.VarChar(1000)
+  screen_resolution String?   @db.VarChar(30)
+  language          String?   @db.VarChar(20)
+  timezone          String?   @db.VarChar(100)
+  created_at        DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([page], map: "idx_page")
+}
+
+model payment_types {
+  id        Int      @id @default(autoincrement())
+  title     String?  @db.VarChar(255)
+  is_active Boolean?
+  tenant_id Int?
+  tenants   tenants? @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "payment_types_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model print_settings {
+  tenant_id             Int      @id
+  page_format           String?  @db.VarChar(5)
+  header                String?  @db.VarChar(2000)
+  footer                String?  @db.VarChar(2000)
+  show_notes            Boolean?
+  is_enable_print       Boolean?
+  show_store_details    Boolean?
+  show_customer_details Boolean?
+  print_token           Boolean?
+  tenants               tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "ps_tenantid_fk")
+}
+
+model qr_order_items {
+  id         Int                    @id @default(autoincrement())
+  order_id   Int?
+  item_id    Int?
+  variant_id Int?
+  price      Decimal?               @db.Decimal(10, 2)
+  quantity   Int?
+  status     qr_order_items_status? @default(created)
+  date       DateTime?              @default(now()) @db.DateTime(0)
+  notes      String?                @db.VarChar(255)
+  addons     String?                @db.MediumText
+  tenant_id  Int?
+  tenants    tenants?               @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tenant_id")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model qr_orders {
+  id             Int                       @id @default(autoincrement())
+  date           DateTime?                 @default(now()) @db.DateTime(0)
+  delivery_type  String?                   @db.VarChar(90)
+  customer_type  qr_orders_customer_type?  @default(WALKIN)
+  customer_id    String?                   @db.VarChar(20)
+  table_id       Int?
+  status         qr_orders_status?         @default(created)
+  payment_status qr_orders_payment_status? @default(pending)
+  tenant_id      Int?
+  tenants        tenants?                  @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tenantId")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model refresh_tokens {
+  username        String    @db.VarChar(255)
+  refresh_token   String    @db.VarChar(500)
+  device_ip       String?   @db.VarChar(50)
+  device_name     String?   @db.VarChar(255)
+  device_location String?   @db.VarChar(255)
+  created_at      DateTime? @default(now()) @db.DateTime(0)
+  expiry          DateTime? @db.DateTime(0)
+  device_id       Int       @default(autoincrement())
+  tenant_id       Int?
+  tenants         tenants?  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "refresh_tokens_ibfk_1")
+
+  @@id([device_id, username, refresh_token])
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model reservations {
+  id           Int       @id @default(autoincrement())
+  customer_id  String?   @db.VarChar(20)
+  date         DateTime? @db.DateTime(0)
+  table_id     Int?
+  status       String?   @db.VarChar(100)
+  notes        String?   @db.VarChar(500)
+  people_count Int?
+  created_at   DateTime? @default(now()) @db.DateTime(0)
+  updated_at   DateTime? @default(now()) @db.DateTime(0)
+  unique_code  String?   @unique(map: "slug_index") @db.VarChar(20)
+  tenant_id    Int?
+  tenants      tenants?  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "reservations_ibfk_1")
+
+  @@index([date], map: "INDEX")
+  @@index([customer_id], map: "INDEX_CUSTOMER_SEARCH")
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model reset_password_tokens {
+  username    String    @id @db.VarChar(255)
+  reset_token String?   @db.VarChar(255)
+  expires_at  DateTime? @db.DateTime(0)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model store_details {
+  store_name          String?  @db.VarChar(255)
+  address             String?  @db.VarChar(255)
+  phone               String?  @db.VarChar(20)
+  email               String?  @db.VarChar(255)
+  currency            String?  @db.VarChar(10)
+  image               String?  @db.VarChar(2000)
+  tenant_id           Int      @id
+  is_qr_menu_enabled  Boolean? @default(false)
+  unique_qr_code      String?  @db.VarChar(255)
+  is_qr_order_enabled Boolean?
+  tenants             tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "store_details_ibfk_1")
+}
+
+model store_tables {
+  id               Int      @id @default(autoincrement())
+  table_title      String?  @db.VarChar(100)
+  floor            String?  @db.VarChar(50)
+  seating_capacity Int?     @db.SmallInt
+  tenant_id        Int?
+  tenants          tenants? @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "store_tables_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model subscription_history {
+  id         Int                          @id @default(autoincrement())
+  tenant_id  Int?
+  created_at DateTime?                    @default(now()) @db.DateTime(0)
+  starts_on  DateTime?                    @db.DateTime(0)
+  expires_on DateTime?                    @db.DateTime(0)
+  status     subscription_history_status?
+  tenants    tenants?                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "subscription_history_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model superadmins {
+  email    String  @id @db.VarChar(255)
+  password String  @db.VarChar(255)
+  name     String? @db.VarChar(255)
+}
+
+model taxes {
+  id        Int         @id @default(autoincrement())
+  title     String?     @db.VarChar(50)
+  rate      Float?
+  type      taxes_type? @default(other)
+  tenant_id Int?
+  tenants   tenants?    @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "taxes_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model tenants {
+  id                   Int                    @id @default(autoincrement())
+  name                 String?                @db.VarChar(95)
+  is_active            Int?                   @db.TinyInt
+  subscription_id      String?                @db.VarChar(255)
+  payment_customer_id  String?                @db.VarChar(255)
+  subscription_start   DateTime?              @db.DateTime(0)
+  subscription_end     DateTime?              @db.DateTime(0)
+  created_at           DateTime?              @default(now()) @db.DateTime(0)
+  trial_started_at     DateTime?              @db.DateTime(0)
+  plan_type            String                 @default("basic") @db.VarChar(20)
+  categories           categories[]
+  customers            customers[]
+  invoice_sequences    invoice_sequences?
+  keeta_credentials    keeta_credentials?
+  keeta_orders         keeta_orders[]
+  invoices             invoices[]
+  menu_item_addons     menu_item_addons[]
+  menu_item_variants   menu_item_variants[]
+  menu_items           menu_items[]
+  order_items          order_items[]
+  orders               orders[]
+  payment_types        payment_types[]
+  print_settings       print_settings?
+  qr_order_items       qr_order_items[]
+  qr_orders            qr_orders[]
+  refresh_tokens       refresh_tokens[]
+  reservations         reservations[]
+  store_details        store_details?
+  store_tables         store_tables[]
+  subscription_history subscription_history[]
+  taxes                taxes[]
+  token_sequences      token_sequences?
+  users                users[]
+}
+
+model token_sequences {
+  tenant_id    Int       @id
+  sequence_no  Int?
+  last_updated DateTime? @db.Date
+  tenants      tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "token_sequences_ibfk_1")
+}
+
+model users {
+  username    String      @id @db.VarChar(255)
+  password    String      @db.VarChar(255)
+  name        String?     @db.VarChar(95)
+  role        users_role? @default(user)
+  photo       String?     @db.VarChar(2000)
+  designation String?     @db.VarChar(50)
+  phone       String?     @db.VarChar(20)
+  email       String?     @db.VarChar(255)
+  scope       String?     @db.VarChar(2000)
+  tenant_id   Int?
+  tenants     tenants?    @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "users_ibfk_1")
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+enum ifood_catalog_mapping_local_type {
+  category
+  item
+  product
+}
+
+enum orders_customer_type {
+  WALKIN
+  CUSTOMER
+}
+
+enum qr_orders_customer_type {
+  WALKIN
+  CUSTOMER
+}
+
+enum taxes_type {
+  inclusive
+  exclusive
+  other
+}
+
+enum users_role {
+  admin
+  user
+}
+
+enum customers_gender {
+  male
+  female
+  other
+}
+
+enum subscription_history_status {
+  updated
+  created
+  cancelled
+}
+
+enum order_items_status {
+  created
+  preparing
+  completed
+  cancelled
+  delivered
+}
+
+enum orders_status {
+  created
+  completed
+  cancelled
+}
+
+enum qr_order_items_status {
+  created
+  preparing
+  completed
+  cancelled
+  delivered
+}
+
+enum qr_orders_status {
+  created
+  completed
+  cancelled
+}
+
+enum qr_orders_payment_status {
+  pending
+  paid
+}
+
+enum orders_payment_status {
+  pending
+  paid
+}
+
+model keeta_credentials {
+  id            Int      @id @default(autoincrement())
+  tenant_id     Int      @unique
+  client_id     String   @db.VarChar(500)
+  client_secret String   @db.VarChar(500)
+  restaurant_id String   @db.VarChar(255)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.DateTime(0)
+  tenants       tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "keeta_credentials_tenant_fk")
+}
+
+model keeta_orders {
+  id             Int      @id @default(autoincrement())
+  keeta_order_id String   @db.VarChar(255)
+  tenant_id      Int
+  customer_name  String?  @db.VarChar(255)
+  total          Decimal  @default(0) @db.Decimal(10, 2)
+  status         String   @default("PLACED") @db.VarChar(100)
+  raw_data       String?  @db.LongText
+  created_at     DateTime @default(now()) @db.DateTime(0)
+  tenants        tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "keeta_orders_tenant_fk")
+
+  @@unique([keeta_order_id, tenant_id], map: "uq_keeta_order_tenant")
+  @@index([tenant_id], map: "keeta_orders_tenant_idx")
+}

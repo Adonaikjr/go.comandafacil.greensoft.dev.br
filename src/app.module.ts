@@ -1,21 +1,74 @@
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ClsModule } from 'nestjs-cls';
+import { LoggerModule } from 'nestjs-pino';
+import { randomUUID } from 'node:crypto';
+import { validateEnv, type Env } from './config/env.schema.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
+import { SubscriptionGuard } from './common/guards/subscription.guard.js';
+import { ScopesGuard } from './common/guards/scopes.guard.js';
+import { HealthModule } from './modules/health/health.module.js';
+import { CustomersModule } from './modules/customers/customers.module.js';
 
 @Module({
   imports: [
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'project-name',
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+        generateId: true,
+        idGenerator: () => randomUUID(),
+      },
     }),
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => {
+        const env = config.get('NODE_ENV', { infer: true });
+        return {
+          pinoHttp: {
+            level: { development: 'debug', production: 'info', test: 'silent' }[
+              env
+            ],
+            transport:
+              env === 'development'
+                ? { target: 'pino-pretty', options: { singleLine: true } }
+                : undefined,
+            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            serializers: {
+              res: (res: { statusCode: number }) => ({
+                statusCode: res.statusCode,
+              }),
+            },
+          },
+        };
+      },
+    }),
+    JwtModule.registerAsync({
+      global: true,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => ({
+        secret: config.get('JWT_SECRET', { infer: true }),
+      }),
+    }),
+    // Mesmo limite que estava comentado no legado (1000 req/min)
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }]),
+    PrismaModule,
+    HealthModule,
+    CustomersModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // A ordem importa: rate limit → autenticação → assinatura → escopos
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: SubscriptionGuard },
+    { provide: APP_GUARD, useClass: ScopesGuard },
+  ],
 })
 export class AppModule {}
