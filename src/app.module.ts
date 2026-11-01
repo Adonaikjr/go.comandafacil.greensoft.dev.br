@@ -23,6 +23,7 @@ import { SettingsModule } from './modules/settings/settings.module.js';
 import { MenuItemsModule } from './modules/menu-items/menu-items.module.js';
 import { ReservationsModule } from './modules/reservations/reservations.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { OrdersModule } from './modules/orders/orders.module.js';
 import { StorageModule } from './integrations/storage/storage.module.js';
 
 @Module({
@@ -80,6 +81,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     MenuItemsModule,
     ReservationsModule,
     UsersModule,
+    OrdersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

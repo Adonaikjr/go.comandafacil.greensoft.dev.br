@@ -67,6 +67,12 @@ export async function createTenant(app: INestApplication, name = 'e2e') {
       http.patch(url).set('Authorization', `Bearer ${token}`),
     delete: (url: string) =>
       http.delete(url).set('Authorization', `Bearer ${token}`),
-    cleanup: () => prisma.tenants.delete({ where: { id: tenant.id } }),
+    // qr_orders/qr_order_items não têm ON DELETE CASCADE no schema herdado
+    cleanup: () =>
+      prisma.$transaction([
+        prisma.qr_order_items.deleteMany({ where: { tenant_id: tenant.id } }),
+        prisma.qr_orders.deleteMany({ where: { tenant_id: tenant.id } }),
+        prisma.tenants.delete({ where: { id: tenant.id } }),
+      ]),
   };
 }
