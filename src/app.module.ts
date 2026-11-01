@@ -20,6 +20,8 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
+import { MenuItemsModule } from './modules/menu-items/menu-items.module.js';
+import { StorageModule } from './integrations/storage/storage.module.js';
 
 @Module({
   imports: [
@@ -67,11 +69,13 @@ import { SettingsModule } from './modules/settings/settings.module.js';
     PrismaModule,
     StripeModule,
     MailModule,
+    StorageModule,
     HealthModule,
     AuthModule,
     BillingModule,
     CustomersModule,
     SettingsModule,
+    MenuItemsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

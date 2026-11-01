@@ -2,9 +2,10 @@ import 'dotenv/config';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import cookieParser from 'cookie-parser';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module.js';
+import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { MailService } from '../../src/integrations/mail/mail.service.js';
 import { Role } from '../../src/common/enums/role.enum.js';
@@ -19,12 +20,11 @@ export async function createTestApp() {
     })
     .compile();
 
-  const app = moduleRef.createNestApplication<INestApplication>({
+  const app = moduleRef.createNestApplication<NestExpressApplication>({
     logger: false,
     rawBody: true,
   });
-  app.use(cookieParser());
-  app.setGlobalPrefix('api/v1', { exclude: ['health', 'sitemap.xml'] });
+  configureApp(app);
   await app.init();
   return app;
 }

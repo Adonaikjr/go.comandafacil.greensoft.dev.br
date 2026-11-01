@@ -3,10 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
-import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
+import { configureApp } from './configure-app.js';
 import type { Env } from './config/env.schema.js';
 
 async function bootstrap() {
@@ -18,8 +18,13 @@ async function bootstrap() {
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
   app.useLogger(app.get(Logger));
-  app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(cookieParser());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      // As imagens de /public são exibidas pelo frontend (outro domínio)
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   const origins = [
     config.get('FRONTEND_DOMAIN', { infer: true }),
@@ -27,7 +32,7 @@ async function bootstrap() {
   ].map((o) => o.trim());
   app.enableCors({ credentials: true, origin: origins });
 
-  app.setGlobalPrefix('api/v1', { exclude: ['health', 'sitemap.xml'] });
+  configureApp(app);
   app.enableShutdownHooks();
 
   const document = SwaggerModule.createDocument(
