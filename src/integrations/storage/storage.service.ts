@@ -11,6 +11,7 @@ export interface ImageOptions {
   width: number;
   height: number;
   quality?: number;
+  fit?: 'inside' | 'cover';
 }
 
 @Injectable()
@@ -27,8 +28,8 @@ export class StorageService {
       .resize({
         width: options.width,
         height: options.height,
-        fit: 'inside',
-        withoutEnlargement: true,
+        fit: options.fit ?? 'inside',
+        withoutEnlargement: options.fit !== 'cover',
       })
       .webp({ quality: options.quality ?? 82 })
       .toFile(target);

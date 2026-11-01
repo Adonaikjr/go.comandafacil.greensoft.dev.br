@@ -21,6 +21,8 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { MenuItemsModule } from './modules/menu-items/menu-items.module.js';
+import { ReservationsModule } from './modules/reservations/reservations.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 import { StorageModule } from './integrations/storage/storage.module.js';
 
 @Module({
@@ -76,6 +78,8 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     CustomersModule,
     SettingsModule,
     MenuItemsModule,
+    ReservationsModule,
+    UsersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
