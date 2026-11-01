@@ -26,7 +26,11 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@bull-board/api": "^9.11.0",
+    "@bull-board/express": "^9.11.0",
+    "@bull-board/nestjs": "^9.11.0",
     "@google/genai": "^2.32.0",
+    "@nestjs/bullmq": "^12.0.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^12.0.1",
@@ -42,6 +46,7 @@
     "@scalar/nestjs-api-reference": "^1.2.34",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.81.5",
     "cookie-parser": "^1.4.7",
     "dotenv": "^18.0.9",
     "express-useragent": "^2.2.3",

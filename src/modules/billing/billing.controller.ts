@@ -26,6 +26,9 @@ import type { JwtPayload } from '../../common/types/jwt-payload.js';
 import { AuthCookiesService } from '../auth/auth-cookies.service.js';
 import { TokenService } from '../auth/token.service.js';
 import { BillingService } from './billing.service.js';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
+import { QUEUE } from '../queues/queue-names.js';
 
 const idSchema = z.object({
   id: z
@@ -44,6 +47,7 @@ export class BillingController {
     private readonly billing: BillingService,
     private readonly cookies: AuthCookiesService,
     private readonly tokens: TokenService,
+    @InjectQueue(QUEUE.STRIPE) private readonly stripeEvents: Queue,
   ) {}
 
   @Get('subscription-details')
@@ -125,11 +129,7 @@ export class BillingController {
       return res.sendStatus(400);
     }
 
-    try {
-      await this.billing.handleEvent(event);
-    } catch (error) {
-      this.logger.error(error);
-    }
+    await this.stripeEvents.add(event.type, event, { jobId: event.id });
     return res.send();
   }
 }

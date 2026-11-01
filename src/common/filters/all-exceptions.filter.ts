@@ -19,16 +19,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      const message =
-        typeof body === 'string'
-          ? body
-          : ((body as { message?: string | string[] }).message ??
-            exception.message);
+      // Corpos estruturados sem `message` (ex.: /health do Terminus) passam intactos
+      if (typeof body === 'object' && body !== null && !('message' in body)) {
+        return response.status(status).json(body);
+      }
+      // Campos extras (ex.: limitReached do POS) são mantidos; statusCode/error do Nest não
+      const {
+        statusCode: _status,
+        error: _error,
+        message,
+        ...extra
+      } = typeof body === 'string'
+        ? { message: body }
+        : (body as Record<string, unknown>);
+      const text = Array.isArray(message)
+        ? message.join(', ')
+        : (message ?? exception.message);
 
-      return response.status(status).json({
-        success: false,
-        message: Array.isArray(message) ? message.join(', ') : message,
-      });
+      return response
+        .status(status)
+        .json({ success: false, ...extra, message: text });
     }
 
     this.logger.error(exception);

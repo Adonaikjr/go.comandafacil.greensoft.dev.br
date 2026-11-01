@@ -47,6 +47,14 @@ export const envSchema = z.object({
   // true: o backend emite new_order/new_qrorder/order_update sozinho e ignora
   // os eventos *_backend repassados pelo frontend.
   REALTIME_SERVER_EVENTS: booleanEnv.default(false),
+
+  // Filas (BullMQ) — ver src/modules/queues
+  // Painel em /admin/queues: superadmin logado ou basic auth com estes dados
+  BULL_BOARD_USER: z.string().optional(),
+  BULL_BOARD_PASSWORD: z.string().optional(),
+  DELIVERY_POLL_INTERVAL_MS: z.coerce.number().int().min(5000).default(30_000),
+  // Cron para gerar post do blog com IA (ex.: "0 9 * * 1"); vazio = desligado
+  BLOG_AI_CRON: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
