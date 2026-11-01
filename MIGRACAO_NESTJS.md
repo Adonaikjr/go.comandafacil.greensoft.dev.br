@@ -320,7 +320,8 @@ Como os bancos são separados, o corte é feito de uma vez:
 - [x] Fase 3: gateway WebSocket autenticado + Redis adapter
 - [x] Fase 4: filas BullMQ + Bull Board
 - [x] Fase 5: superadmin, billing, blog, sitemap, Gemini, iFood, Keeta
-- [ ] Fase 6: testes comparativos, migração de dados `pdv` → `comanda-facil`, corte
+- [x] Fase 6: script de migração de dados (ensaiado)
+- [ ] Fase 6: corte (executar a migração de dados e apontar o domínio/webhook para o backend-new)
 
 ---
 
@@ -356,5 +357,9 @@ Como os bancos são separados, o corte é feito de uma vez:
 
 1. **Frontend e Socket.IO.** O frontend atual funciona sem mudanças (`SOCKET_LEGACY_AUTH=true`, `REALTIME_SERVER_EVENTS=false`). Para fechar a brecha de qualquer cliente entrar na sala de outro tenant, o frontend precisa conectar com `withCredentials: true` (ou `auth: { token }`). Depois disso, configurar `SOCKET_LEGACY_AUTH=false`. Com `REALTIME_SERVER_EVENTS=true`, o backend passa a emitir os eventos sozinho, e o frontend deve parar de emitir os `*_backend`.
 2. **Keeta.** Os endpoints da API continuam os placeholders do legado. É preciso conferir na documentação oficial (`KEETA_API_BASE` e os caminhos em `keeta.provider.ts`).
-3. **Script de migração de dados** `pdv` → `comanda-facil` (Fase 6): ajuste de fuso, `ifood_*.tenant_id` para `INT` e `store_details` sem `tenant_id`.
+3. **Migração de dados** `pdv` → `comanda-facil` (Fase 6): script pronto em `scripts/migrate-legacy-data.ts` (`npm run data:migrate-legacy`). Ele converte o fuso, transforma `ifood_*.tenant_id` em `INT` e descarta `store_details` sem `tenant_id`. Sem `--execute`, só simula. Ensaio feito em 01/11/2026 num MySQL local: as 33 tabelas copiadas, contagens iguais às da origem, datas deslocadas de UTC+1 para São Paulo (−4 h) e nenhuma linha órfã. No dia do corte:
+   ```bash
+   LEGACY_DATABASE_URL="mysql://…/pdv" LEGACY_TZ="Europe/Paris" npm run data:migrate-legacy -- --execute --truncate
+   ```
+   `LEGACY_TZ` é o fuso do servidor do banco legado (hoje UTC+1); confirme o fuso exato com quem administra o servidor para tratar o horário de verão. `--truncate` apaga os dados de teste do destino.
 4. **Chaves de teste.** Trocar no `.env` de dev as chaves reais do Stripe e do SMTP por chaves de teste.
