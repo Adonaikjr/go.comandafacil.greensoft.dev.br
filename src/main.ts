@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { configureApp } from './configure-app.js';
+import { RedisIoAdapter } from './modules/realtime/redis-io.adapter.js';
 import type { Env } from './config/env.schema.js';
 
 async function bootstrap() {
@@ -31,6 +32,10 @@ async function bootstrap() {
     ...(config.get('CORS_EXTRA_ORIGINS', { infer: true })?.split(',') ?? []),
   ].map((o) => o.trim());
   app.enableCors({ credentials: true, origin: origins });
+
+  const ioAdapter = new RedisIoAdapter(app, origins);
+  await ioAdapter.connectToRedis(config.get('REDIS_URL', { infer: true }));
+  app.useWebSocketAdapter(ioAdapter);
 
   configureApp(app);
   app.enableShutdownHooks();

@@ -4,6 +4,7 @@ import { SubscriptionGuard, TRIAL_DAYS } from './subscription.guard.js';
 
 const contextFor = (user: object) =>
   ({
+    getType: () => 'http',
     getHandler: () => function handler() {},
     getClass: () => class Controller {},
     switchToHttp: () => ({ getRequest: () => ({ user }) }),

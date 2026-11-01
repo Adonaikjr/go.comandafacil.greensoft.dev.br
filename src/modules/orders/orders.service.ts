@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import { nowAsDbDateTime, todayString } from '../../common/utils/db-time.js';
 import type { CartItem } from './dto/order.schema.js';
 import { calculateSummary, type SummaryItem } from './order-summary.js';
@@ -58,7 +59,10 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   // Equivale ao par "SELECT pedidos + SELECT itens + SELECT adicionais" que o
   // legado repetia em cada service, já montando order.items[].addons.
@@ -144,7 +148,7 @@ export class OrdersService {
   ) {
     const today = todayString();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<
         { sequence_no: number | null; last_updated: Date | null }[]
       >`
@@ -197,6 +201,9 @@ export class OrdersService {
 
       return { tokenNo, orderId: order.id };
     }, TX_OPTIONS);
+
+    this.realtime.emitToTenant(tenantId, 'new_order', result);
+    return result;
   }
 
   // Número de fatura sequencial por tenant (invoice_sequences, com lock)
@@ -236,6 +243,7 @@ export class OrdersService {
       where: { id: itemId, tenant_id: tenantId },
       data: { status: status as never },
     });
+    this.realtime.emitToTenant(tenantId, 'order_update');
   }
 
   async setOrdersStatus(
@@ -247,6 +255,7 @@ export class OrdersService {
       where: { id: { in: orderIds }, tenant_id: tenantId },
       data: { status },
     });
+    this.realtime.emitToTenant(tenantId, 'order_update');
   }
 
   async completeAndPay(

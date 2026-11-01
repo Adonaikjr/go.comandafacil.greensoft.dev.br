@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import type { CartItem } from '../orders/dto/order.schema.js';
 
 @Injectable()
 export class QrMenuService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   // Pedido feito pelo cliente no cardápio digital; fica em qr_orders até o POS
   // aceitar. Cadastra o cliente pelo telefone se ainda não existir.
-  placeOrder(
+  async placeOrder(
     tenantId: number,
     input: {
       deliveryType: string | null;
@@ -19,7 +23,7 @@ export class QrMenuService {
       tableId: number | null;
     },
   ) {
-    return this.prisma.$transaction(
+    const orderId = await this.prisma.$transaction(
       async (tx) => {
         const order = await tx.qr_orders.create({
           data: {
@@ -68,5 +72,8 @@ export class QrMenuService {
       },
       { maxWait: 10_000, timeout: 20_000 },
     );
+
+    this.realtime.emitToTenant(tenantId, 'new_qrorder', { orderId });
+    return orderId;
   }
 }

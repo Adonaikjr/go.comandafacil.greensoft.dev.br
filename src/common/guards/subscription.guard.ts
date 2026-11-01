@@ -19,6 +19,9 @@ export class SubscriptionGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // Guards globais valem só para HTTP; o Socket.IO autentica no gateway
+    if (context.getType() !== 'http') return true;
+
     const skip =
       this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
         context.getHandler(),

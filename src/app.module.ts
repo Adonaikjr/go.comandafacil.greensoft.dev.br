@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { HttpThrottlerGuard } from './common/guards/http-throttler.guard.js';
 import { ClsModule } from 'nestjs-cls';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
@@ -26,6 +27,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { QrMenuModule } from './modules/qrmenu/qrmenu.module.js';
+import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { StorageModule } from './integrations/storage/storage.module.js';
 
 @Module({
@@ -76,6 +78,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     MailModule,
     StorageModule,
     HealthModule,
+    RealtimeModule,
     AuthModule,
     BillingModule,
     CustomersModule,
@@ -91,7 +94,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: LegacySerializerInterceptor },
     // A ordem importa: rate limit → autenticação → assinatura → escopos
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: HttpThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: SubscriptionGuard },
     { provide: APP_GUARD, useClass: ScopesGuard },

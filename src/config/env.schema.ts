@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+const booleanEnv = z
+  .enum(['true', 'false', '1', '0'])
+  .transform((v) => v === 'true' || v === '1');
+
 export const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
@@ -34,6 +38,14 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   BACKEND_URL: z.string().default('http://localhost:3333'),
+
+  // Socket.IO — ver src/modules/realtime/realtime.gateway.ts
+  // true: aceita `authenticate(tenantId)` sem token (comportamento do legado).
+  // Desligar quando o frontend enviar o cookie (withCredentials) ou auth.token.
+  SOCKET_LEGACY_AUTH: booleanEnv.default(true),
+  // true: o backend emite new_order/new_qrorder/order_update sozinho e ignora
+  // os eventos *_backend repassados pelo frontend.
+  REALTIME_SERVER_EVENTS: booleanEnv.default(false),
 });
 
 export type Env = z.infer<typeof envSchema>;
