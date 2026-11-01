@@ -38,6 +38,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   BACKEND_URL: z.string().default('http://localhost:3333'),
+  KEETA_API_BASE: z.string().default('https://api.keeta.com.br'),
 
   // Socket.IO — ver src/modules/realtime/realtime.gateway.ts
   // true: aceita `authenticate(tenantId)` sem token (comportamento do legado).

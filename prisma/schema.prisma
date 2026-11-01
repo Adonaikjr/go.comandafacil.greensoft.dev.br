@@ -90,25 +90,28 @@ model ifood_catalog_mapping {
 
 model ifood_credentials {
   id            Int       @id @default(autoincrement())
-  tenant_id     String    @unique(map: "uq_ifood_credentials_tenant") @db.VarChar(255)
+  tenant_id     Int       @unique(map: "uq_ifood_credentials_tenant")
   client_id     String    @db.VarChar(500)
   client_secret String    @db.VarChar(500)
   merchant_id   String    @db.VarChar(255)
   is_active     Boolean   @default(true)
   created_at    DateTime? @default(now()) @db.Timestamp(0)
+  tenants       tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "ifood_credentials_tenant_fk")
 }
 
 model ifood_orders {
   id             Int       @id @default(autoincrement())
   ifood_order_id String    @db.VarChar(255)
-  tenant_id      String    @db.VarChar(255)
+  tenant_id      Int
   customer_name  String?   @db.VarChar(255)
   total          Decimal   @default(0.00) @db.Decimal(10, 2)
   status         String    @default("PLACED") @db.VarChar(100)
   raw_data       String?   @db.LongText
   created_at     DateTime? @default(now()) @db.Timestamp(0)
+  tenants        tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "ifood_orders_tenant_fk")
 
   @@unique([ifood_order_id, tenant_id], map: "uq_ifood_order_tenant")
+  @@index([tenant_id], map: "ifood_orders_tenant_idx")
 }
 
 model invoice_sequences {
@@ -389,6 +392,8 @@ model tenants {
   categories           categories[]
   customers            customers[]
   invoice_sequences    invoice_sequences?
+  ifood_credentials    ifood_credentials?
+  ifood_orders         ifood_orders[]
   keeta_credentials    keeta_credentials?
   keeta_orders         keeta_orders[]
   invoices             invoices[]

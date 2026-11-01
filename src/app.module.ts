@@ -30,6 +30,7 @@ import { QrMenuModule } from './modules/qrmenu/qrmenu.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { SuperadminModule } from './modules/superadmin/superadmin.module.js';
 import { BlogModule } from './modules/blog/blog.module.js';
+import { DeliveryModule } from './modules/delivery/delivery.module.js';
 import { AiModule } from './integrations/ai/ai.module.js';
 import { StorageModule } from './integrations/storage/storage.module.js';
 
@@ -95,6 +96,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     QrMenuModule,
     SuperadminModule,
     BlogModule,
+    DeliveryModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
