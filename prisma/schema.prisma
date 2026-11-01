@@ -9,29 +9,29 @@ datasource db {
 }
 
 model BlogPost {
-  id         String     @id
-  slug       String     @unique
-  title      String     @db.VarChar(255)
-  excerpt    String     @db.Text
-  content    String     @db.LongText
-  author     String     @db.VarChar(255)
-  date       DateTime
-  readTime   String     @db.VarChar(50)
-  category   String     @db.VarChar(100)
-  featured   Boolean    @default(false)
-  views      Int        @default(0)
-  image      String     @db.VarChar(500)
-  created_at DateTime   @default(now())
-  updated_at DateTime
-  BlogTags   BlogTags[] @relation("BlogPostTags")
+  id          String     @id @default(uuid())
+  slug        String     @unique
+  title       String     @db.VarChar(255)
+  excerpt     String     @db.Text
+  content     String     @db.LongText
+  author      String     @db.VarChar(255)
+  date        DateTime
+  readTime    String     @db.VarChar(50)
+  category    String     @db.VarChar(100)
+  featured    Boolean    @default(false)
+  views       Int        @default(0)
+  image       String     @db.VarChar(500)
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  blog_tag_id BlogTags[] @relation("BlogPostTags")
 }
 
 model BlogTags {
-  id         String     @id
+  id         String     @id @default(uuid())
   name       String     @unique
   created_at DateTime   @default(now())
-  updated_at DateTime
-  BlogPost   BlogPost[] @relation("BlogPostTags")
+  updated_at DateTime   @updatedAt
+  blogPosts  BlogPost[] @relation("BlogPostTags")
 }
 
 model categories {
