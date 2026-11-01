@@ -19,6 +19,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
+import { SettingsModule } from './modules/settings/settings.module.js';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { CustomersModule } from './modules/customers/customers.module.js';
     AuthModule,
     BillingModule,
     CustomersModule,
+    SettingsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
