@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MenuItemsModule } from '../menu-items/menu-items.module.js';
+import { InventoryModule } from '../inventory/inventory.module.js';
 import { OrdersService } from './orders.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { PosController } from './pos.controller.js';
@@ -9,7 +10,7 @@ import { InvoicesController } from './invoices.controller.js';
 
 // POS, pedidos, cozinha e faturas compartilham o mesmo domínio (orders)
 @Module({
-  imports: [MenuItemsModule],
+  imports: [MenuItemsModule, InventoryModule],
   controllers: [
     PosController,
     OrdersController,

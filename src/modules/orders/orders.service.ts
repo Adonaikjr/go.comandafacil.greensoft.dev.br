@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
+import { InventoryService } from '../inventory/inventory.service.js';
 import { nowAsDbDateTime, todayString } from '../../common/utils/db-time.js';
 import type { CartItem } from './dto/order.schema.js';
 import { calculateSummary, type SummaryItem } from './order-summary.js';
@@ -62,6 +63,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly inventory: InventoryService,
   ) {}
 
   // Equivale ao par "SELECT pedidos + SELECT itens + SELECT adicionais" que o
@@ -188,6 +190,8 @@ export class OrdersService {
         })),
       });
 
+      await this.inventory.consumeForOrder(tx, tenantId, order.id, input.cart);
+
       const lastUpdated = new Date(`${today}T00:00:00Z`);
       await tx.token_sequences.upsert({
         where: { tenant_id: tenantId },
@@ -255,6 +259,9 @@ export class OrdersService {
       where: { id: { in: orderIds }, tenant_id: tenantId },
       data: { status },
     });
+    if (status === 'cancelled') {
+      await this.inventory.restockCancelledOrders(tenantId, orderIds);
+    }
     this.realtime.emitToTenant(tenantId, 'order_update');
   }
 
