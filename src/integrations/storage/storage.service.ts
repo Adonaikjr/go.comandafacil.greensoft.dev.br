@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { mkdir, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
@@ -16,6 +16,8 @@ export interface ImageOptions {
 
 @Injectable()
 export class StorageService {
+  private readonly logger = new Logger(StorageService.name);
+
   // Redimensiona, converte para WebP e devolve a URL pública
   async saveImage(
     input: Buffer | string,
@@ -24,15 +26,27 @@ export class StorageService {
   ) {
     const target = join(PUBLIC_DIR, relativePath);
     await mkdir(dirname(target), { recursive: true });
-    await sharp(input)
-      .resize({
-        width: options.width,
-        height: options.height,
-        fit: options.fit ?? 'inside',
-        withoutEnlargement: options.fit !== 'cover',
-      })
-      .webp({ quality: options.quality ?? 82 })
-      .toFile(target);
+    try {
+      await sharp(input)
+        // Fotos de celular vêm rotacionadas pelo EXIF
+        .rotate()
+        .resize({
+          width: options.width,
+          height: options.height,
+          fit: options.fit ?? 'inside',
+          withoutEnlargement: options.fit !== 'cover',
+        })
+        .webp({ quality: options.quality ?? 82 })
+        .toFile(target);
+    } catch (error) {
+      // Arquivo corrompido ou formato que o sharp não lê (ex.: HEIC do iPhone)
+      this.logger.warn(
+        `Imagem rejeitada (${relativePath}): ${(error as Error).message}`,
+      );
+      throw new BadRequestException(
+        'Não foi possível ler a imagem. Envie uma foto em JPG, PNG ou WEBP.',
+      );
+    }
     return `/public/${relativePath}`;
   }
 

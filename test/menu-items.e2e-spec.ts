@@ -82,6 +82,12 @@ describe('Menu items (e2e)', () => {
       .expect(200)
       .expect('content-type', 'image/webp');
 
+    const invalid = await t
+      .post(`/api/v1/menu-items/update/${id}/upload-photo`)
+      .attach('image', Buffer.from('isto nao e uma imagem'), 'foto.jpg')
+      .expect(400);
+    expect(invalid.body.message).toContain('JPG, PNG ou WEBP');
+
     await t.post(`/api/v1/menu-items/update/${id}/remove-photo`).expect(200);
     expect(
       (await t.get(`/api/v1/menu-items/${id}`).expect(200)).body.image,

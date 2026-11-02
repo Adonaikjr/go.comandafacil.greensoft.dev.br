@@ -6,7 +6,7 @@ import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 export const ApiImageUpload = (field = 'image') =>
   applyDecorators(
     UseInterceptors(
-      FileInterceptor(field, { limits: { fileSize: 10 * 1024 * 1024 } }),
+      FileInterceptor(field, { limits: { fileSize: 20 * 1024 * 1024 } }),
     ),
     ApiConsumes('multipart/form-data'),
     ApiBody({
