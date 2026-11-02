@@ -22,6 +22,8 @@ jobs:
       VPS_PORT: "22"
       VPS_PATH: /home/dev-comandafacil-greensoft/htdocs/comandafacil.greensoft.dev.br
       VPS_KNOWN_HOSTS: ${{ vars.VPS_KNOWN_HOSTS }}
+      # prisma.config.ts exige a variável; o generate não conecta no banco
+      DATABASE_URL: mysql://ci:ci@localhost:3306/ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +33,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Set up npm
+        run: npm install --global npm@11.8.0
 
       - name: Install dependencies
         run: npm ci
@@ -66,14 +71,19 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
 
           SSH_OPTIONS="-i $HOME/.ssh/vps_deploy -p $VPS_PORT -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
-          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_PATH'"
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_PATH/public'"
 
-          rsync --archive --compress \
-            --exclude='.env' \
-            --exclude='logs/' \
+          # public/ guarda os uploads da VPS e não é versionado: nunca sincronizar
+          rsync --archive --compress --delete \
             -e "ssh $SSH_OPTIONS" \
-            dist/ public/ prisma/ package.json package-lock.json ecosystem.config.cjs \
+            dist/ "$VPS_USER@$VPS_HOST:$VPS_PATH/dist/"
+          rsync --archive --compress --delete \
+            -e "ssh $SSH_OPTIONS" \
+            prisma/ "$VPS_USER@$VPS_HOST:$VPS_PATH/prisma/"
+          rsync --archive --compress \
+            -e "ssh $SSH_OPTIONS" \
+            package.json package-lock.json ecosystem.config.cjs \
             "$VPS_USER@$VPS_HOST:$VPS_PATH/"
 
           ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" \
-            "cd '$VPS_PATH' && npm ci --omit=dev --ignore-scripts && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
+            "NODE_BIN_DIR=\$(find \"\$HOME/.nvm/versions/node\" -mindepth 3 -maxdepth 3 -type f -path '*/bin/node' -printf '%h\n' | sort -V | tail -n 1) && export PATH=\"\$NODE_BIN_DIR:\$PATH\" && cd '$VPS_PATH' && npm ci --omit=dev --ignore-scripts && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"

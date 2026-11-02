@@ -30,7 +30,9 @@ os arquivos da aplicação; `.env` não é enviado pelo workflow nem versionado.
 
 Na primeira configuração:
 
-1. Confirme que o usuário de site do CloudPanel tem Node.js 22, npm e acesso SSH.
+1. Confirme que o usuário de site do CloudPanel tem Node.js 22 e acesso SSH.
+   O bootstrap e o workflow fixam npm em `11.8.0` para manter instalação
+   compatível com o lockfile.
 2. No diretório raiz local, rode `bash deploy/bootstrap-vps.sh`. Informe a senha
    SSH quando solicitada. O script copia o `.env` local diretamente para a VPS,
    ajusta `PORT=5000`, restringe as permissões do arquivo e prepara o PM2.

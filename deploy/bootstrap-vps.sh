@@ -51,6 +51,8 @@ if ! command -v node >/dev/null || ! command -v npm >/dev/null; then
   exit 1
 fi
 
+npm install --global npm@11.8.0
+
 if ! command -v pm2 >/dev/null; then
   npm install --global pm2
 fi
@@ -61,8 +63,8 @@ if command -v sudo >/dev/null && sudo -n true 2>/dev/null; then
   sudo env "PATH=$PATH" "$(command -v pm2)" startup systemd -u "$(id -un)" --hp "$HOME"
   echo "PM2 startup has been registered. The deploy workflow will save the app process after its first deployment."
 else
-  pm2 startup systemd -u "$(id -un)" --hp "$HOME"
-  echo "Run the sudo command printed above once as a VPS administrator to enable PM2 at boot."
+  printf 'Run this once as a VPS administrator to enable PM2 at boot:\nsudo env PATH=%s %s startup systemd -u %s --hp %s\n' \
+    "$PATH" "$(command -v pm2)" "$(id -un)" "$HOME"
 fi
 REMOTE
 
