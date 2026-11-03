@@ -52,7 +52,7 @@ export class BlogController {
   private get baseUrl() {
     return (
       this.config.get('FRONTEND_DOMAIN', { infer: true }) ||
-      'https://pdv.greensoft.dev.br'
+      'https://pdv-comanda-facil.greensoft.dev.br'
     );
   }
 

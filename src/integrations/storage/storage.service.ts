@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { mkdir, unlink } from 'node:fs/promises';
+import { mkdir, rm, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 
@@ -56,5 +56,13 @@ export class StorageService {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
+  }
+
+  // Exclusão de conta: apaga a pasta inteira da loja (fotos e cardápio)
+  async removeTenantFiles(tenantId: number) {
+    await rm(join(PUBLIC_DIR, String(tenantId)), {
+      recursive: true,
+      force: true,
+    });
   }
 }

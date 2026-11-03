@@ -19,6 +19,7 @@ import { MailModule } from './integrations/mail/mail.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
+import { AccountModule } from './modules/account/account.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { MenuItemsModule } from './modules/menu-items/menu-items.module.js';
@@ -90,6 +91,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     RealtimeModule,
     AuthModule,
     BillingModule,
+    AccountModule,
     CustomersModule,
     SettingsModule,
     MenuItemsModule,

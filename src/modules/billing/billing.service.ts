@@ -37,6 +37,22 @@ export class BillingService {
     await this.stripe.subscriptions.cancel(subscriptionId);
   }
 
+  // Exclusão de conta: a cobrança tem que parar antes de a loja sumir.
+  // Assinatura já cancelada ou inexistente no Stripe não impede a exclusão.
+  async cancelSubscriptionIfActive(subscriptionId: string) {
+    try {
+      const subscription =
+        await this.stripe.subscriptions.retrieve(subscriptionId);
+      if (subscription.status === 'canceled') return;
+      await this.stripe.subscriptions.cancel(subscriptionId);
+    } catch (error) {
+      if ((error as Stripe.errors.StripeError).code === 'resource_missing') {
+        return;
+      }
+      throw error;
+    }
+  }
+
   async createCheckoutSession(
     priceId: string,
     email: string,
