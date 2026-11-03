@@ -51,9 +51,12 @@ Na primeira configuração:
    `gh variable set VPS_KNOWN_HOSTS --body "$(ssh-keyscan -p 22 comandafacil.greensoft.dev.br)"`.
 5. Faça o primeiro deploy pela aba Actions ou envie um commit para `main`.
 
-O deploy instala as dependências de produção, inicia/recarrega a aplicação no
-PM2 e executa `pm2 save`. O arquivo `.env` permanece no servidor e não é
-removido pelo `rsync`. O CloudPanel deve encaminhar o domínio para a porta 5000.
+O deploy instala as dependências de produção, aplica as migrations pendentes
+(`npm run prisma:migrate`, com o `.env` da VPS), inicia/recarrega a aplicação
+no PM2 e executa `pm2 save`. Se a migration falhar, a aplicação não é
+recarregada e a versão anterior continua no ar. Por isso o `prisma` (CLI) fica
+em `dependencies`: o `npm ci --omit=dev` da VPS precisa dele. O arquivo `.env`
+permanece no servidor e não é removido pelo `rsync`. O CloudPanel deve encaminhar o domínio para a porta 5000.
 
 O deploy usa uma chave SSH dedicada, sem senha SSH armazenada no workflow.
 Rotacione senhas/chaves que tenham sido compartilhadas em mensagens ou

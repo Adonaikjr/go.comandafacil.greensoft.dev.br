@@ -80,10 +80,14 @@ jobs:
           rsync --archive --compress --delete \
             -e "ssh $SSH_OPTIONS" \
             prisma/ "$VPS_USER@$VPS_HOST:$VPS_PATH/prisma/"
+          # prisma.config.ts: o Prisma 7 tira dele a URL do banco (via .env da VPS)
           rsync --archive --compress \
             -e "ssh $SSH_OPTIONS" \
-            package.json package-lock.json ecosystem.config.cjs \
+            package.json package-lock.json ecosystem.config.cjs prisma.config.ts \
             "$VPS_USER@$VPS_HOST:$VPS_PATH/"
 
+          # As migrations rodam antes do reload: o código novo pode depender de
+          # coluna nova. Se a migration falhar, o && para tudo e a versão
+          # anterior segue no ar.
           ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" \
-            "NODE_BIN_DIR=\$(find \"\$HOME/.nvm/versions/node\" -mindepth 3 -maxdepth 3 -type f -path '*/bin/node' -printf '%h\n' | sort -V | tail -n 1) && export PATH=\"\$NODE_BIN_DIR:\$PATH\" && cd '$VPS_PATH' && npm ci --omit=dev --ignore-scripts && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
+            "NODE_BIN_DIR=\$(find \"\$HOME/.nvm/versions/node\" -mindepth 3 -maxdepth 3 -type f -path '*/bin/node' -printf '%h\n' | sort -V | tail -n 1) && export PATH=\"\$NODE_BIN_DIR:\$PATH\" && cd '$VPS_PATH' && npm ci --omit=dev --ignore-scripts && npm run prisma:migrate && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
