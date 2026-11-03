@@ -95,6 +95,10 @@ describe('Dashboard, relatórios e cardápio digital (e2e)', () => {
       totalCustomers: 1,
       revenueTotal: '16.00',
       netRevenue: '16.00',
+      revenueSeries: {
+        granularity: 'hour',
+        points: [expect.objectContaining({ revenue: 16, invoices: 1 })],
+      },
     });
     const lastMonth = await t
       .get('/api/v1/reports?type=last_month')

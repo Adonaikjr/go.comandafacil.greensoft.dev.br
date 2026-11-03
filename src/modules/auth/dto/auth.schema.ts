@@ -34,6 +34,12 @@ export const resetPasswordSchema = z.object({
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
 
+export const googleExchangeSchema = z.object({
+  code: requiredString,
+  code_verifier: requiredString,
+});
+export type GoogleExchangeDto = z.infer<typeof googleExchangeSchema>;
+
 export const messageSchema = z.object({
   success: z.boolean(),
   message: z.string(),

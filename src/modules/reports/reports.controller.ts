@@ -71,6 +71,7 @@ export class ReportsController {
       revenueTotal,
       topSellingItems,
       currency,
+      revenueSeries,
     ] = await Promise.all([
       this.reports.ordersCount(tenantId, period),
       this.reports.newCustomersCount(tenantId, period),
@@ -82,6 +83,7 @@ export class ReportsController {
       this.reports.revenueTotal(tenantId, period),
       this.reports.topSellingItems(tenantId, period),
       this.settings.getCurrency(tenantId),
+      this.reports.revenueSeries(tenantId, period),
     ]);
     return {
       ordersCount,
@@ -94,6 +96,7 @@ export class ReportsController {
       taxTotal,
       revenueTotal,
       topSellingItems,
+      revenueSeries,
     };
   }
 }
