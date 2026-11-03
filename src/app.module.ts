@@ -28,6 +28,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { QrMenuModule } from './modules/qrmenu/qrmenu.module.js';
+import { PushModule } from './modules/push/push.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { SuperadminModule } from './modules/superadmin/superadmin.module.js';
 import { BlogModule } from './modules/blog/blog.module.js';
@@ -98,6 +99,7 @@ import { StorageModule } from './integrations/storage/storage.module.js';
     OrdersModule,
     ReportsModule,
     QrMenuModule,
+    PushModule,
     SuperadminModule,
     BlogModule,
     DeliveryModule,

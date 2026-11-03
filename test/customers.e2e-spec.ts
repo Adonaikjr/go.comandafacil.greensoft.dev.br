@@ -99,9 +99,27 @@ describe('Customers (e2e)', () => {
     });
   });
 
-  it('bloqueia assinatura vencida com 402', async () => {
+  it('teste vencido cai no plano grátis: rota grátis continua liberada', async () => {
     await http()
       .get('/api/v1/customers')
+      .set('Authorization', `Bearer ${expiredToken}`)
+      .expect(200);
+  });
+
+  it('teste vencido recebe 402 em rota do plano Pro', async () => {
+    await http()
+      .get('/api/v1/reservations?type=today')
+      .set('Authorization', `Bearer ${expiredToken}`)
+      .expect(402);
+  });
+
+  it('teste vencido só vê relatório de hoje', async () => {
+    await http()
+      .get('/api/v1/reports?type=today')
+      .set('Authorization', `Bearer ${expiredToken}`)
+      .expect(200);
+    await http()
+      .get('/api/v1/reports?type=last_7days')
       .set('Authorization', `Bearer ${expiredToken}`)
       .expect(402);
   });

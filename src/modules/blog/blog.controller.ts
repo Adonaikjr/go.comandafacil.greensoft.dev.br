@@ -15,7 +15,6 @@ import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
 import type { Env } from '../../config/env.schema.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { ZodBody, ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard.js';
 import { BlogService } from './blog.service.js';
@@ -96,7 +95,6 @@ export class BlogController {
   // No legado qualquer usuário logado de restaurante podia publicar no blog
   // do site; aqui é restrito ao superadmin.
   @Post('blog/create')
-  @SkipSubscription()
   @UseGuards(SuperAdminGuard)
   @ZodBody(createPostSchema)
   async create(@Body() dto: z.infer<typeof createPostSchema>) {
@@ -108,7 +106,6 @@ export class BlogController {
   // Agora exige superadmin; a geração periódica roda como job (ver queues).
   @Get('gemini')
   @HttpCode(201)
-  @SkipSubscription()
   @UseGuards(SuperAdminGuard)
   async generate() {
     await this.blog.generateWithAi();

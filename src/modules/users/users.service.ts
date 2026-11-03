@@ -36,6 +36,10 @@ export class UsersService {
     });
   }
 
+  count(tenantId: number) {
+    return this.prisma.users.count({ where: { tenant_id: tenantId } });
+  }
+
   async create(tenantId: number, dto: CreateUserDto) {
     const exists = await this.prisma.users.findUnique({
       where: { username: dto.username },

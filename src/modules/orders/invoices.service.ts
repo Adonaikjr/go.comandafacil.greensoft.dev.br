@@ -10,6 +10,7 @@ export interface InvoiceRow {
   sub_total: unknown;
   tax_total: unknown;
   total: unknown;
+  payment_type_title: string | null;
   table_id: number | null;
   table_title: string | null;
   floor: string | null;
@@ -29,7 +30,7 @@ export class InvoicesService {
   private select(where: Prisma.Sql, suffix = Prisma.empty) {
     return this.prisma.$queryRaw<InvoiceRow[]>`
       SELECT o.invoice_id, o.id AS order_id, i.created_at, i.sub_total, i.tax_total, i.total,
-             o.table_id, st.table_title, st.floor, o.payment_status, o.token_no,
+             i.payment_type_title, o.table_id, st.table_title, st.floor, o.payment_status, o.token_no,
              o.delivery_type, o.customer_type, o.customer_id, c.name, c.email
       FROM orders o
       INNER JOIN invoices i ON o.invoice_id = i.id AND i.tenant_id = o.tenant_id

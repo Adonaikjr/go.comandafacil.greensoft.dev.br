@@ -48,15 +48,26 @@ describe('Dashboard, relatórios e cardápio digital (e2e)', () => {
     });
     expect(menu.body.menuItems[0].id).toBe(itemId);
 
-    await http
+    // O preço enviado pelo cliente é ignorado: vale o do cardápio (R$ 8)
+    const placed = await http
       .post(`/api/v1/qrmenu/${uniqueQRCode}/place-order`)
       .send({
-        cartItems: [{ id: itemId, price: 8, quantity: 3 }],
+        cartItems: [{ id: itemId, price: 0.01, quantity: 3 }],
         customerType: 'CUSTOMER',
         customer: { phone: '11900001111', name: 'Leo' },
         tableId: table.body.id,
       })
       .expect(200);
+    const [orderItem] = await t.prisma.qr_order_items.findMany({
+      where: { order_id: placed.body.orderId },
+    });
+    expect(Number(orderItem.price)).toBe(8);
+
+    // Item que não é da loja
+    await http
+      .post(`/api/v1/qrmenu/${uniqueQRCode}/place-order`)
+      .send({ cartItems: [{ id: itemId + 999_999, price: 1, quantity: 1 }] })
+      .expect(400);
 
     expect((await t.get('/api/v1/pos/qrorders/count')).body.totalQROrders).toBe(
       1,

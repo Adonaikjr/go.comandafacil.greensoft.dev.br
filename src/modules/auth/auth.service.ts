@@ -193,9 +193,12 @@ export class AuthService {
         created_at: true,
       },
     });
-    return devices.map((device) => ({
+    // O refresh_token de cada aparelho nao sai daqui: devolve-lo deixava
+    // quem tivesse um access token assumir as outras sessoes.
+    return devices.map(({ refresh_token, ...device }) => ({
       ...device,
-      isMyDevice: device.refresh_token == currentRefreshToken,
+      isMyDevice:
+        currentRefreshToken != null && refresh_token == currentRefreshToken,
     }));
   }
 

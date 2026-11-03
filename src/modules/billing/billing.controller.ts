@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -15,7 +17,6 @@ import { ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
 import {
   CurrentUser,
@@ -38,7 +39,6 @@ const idSchema = z.object({
 
 // Rotas de assinatura que o legado expõe em /auth
 @ApiTags('billing')
-@SkipSubscription()
 @Controller('auth')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
@@ -67,7 +67,17 @@ export class BillingController {
     @Body() { id }: z.infer<typeof idSchema>,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.billing.cancelSubscription(id);
+    // O id vem do corpo (contrato do web), mas so vale a assinatura do
+    // proprio tenant: antes, o admin de uma loja cancelava a de outra se
+    // soubesse o id do Stripe.
+    const own = await this.billing.getSubscriptionDetails(user.tenant_id);
+    if (!own?.subscription_id) {
+      throw new BadRequestException('Nenhuma assinatura ativa para cancelar.');
+    }
+    if (id !== own.subscription_id) {
+      throw new ForbiddenException('Assinatura não pertence a esta loja.');
+    }
+    await this.billing.cancelSubscription(own.subscription_id);
 
     const { trial_started_at: _trial, ...rest } = user;
     const accessToken = this.tokens.signAccess({

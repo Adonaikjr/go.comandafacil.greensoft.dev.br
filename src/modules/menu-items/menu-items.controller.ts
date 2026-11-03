@@ -14,7 +14,6 @@ import {
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { TenantId } from '../../common/decorators/current-user.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { ZodBody } from '../../common/decorators/zod.decorator.js';
 import { ApiImageUpload } from '../../common/decorators/api-image-upload.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
@@ -60,7 +59,6 @@ export class MenuItemsController {
 
   @Post('update/:id/upload-photo')
   @HttpCode(200)
-  @SkipSubscription()
   @ApiImageUpload()
   async uploadPhoto(
     @TenantId() tenantId: number,
@@ -82,7 +80,6 @@ export class MenuItemsController {
 
   @Post('update/:id/remove-photo')
   @HttpCode(200)
-  @SkipSubscription()
   async removePhoto(
     @TenantId() tenantId: number,
     @Param('id', ParseIntPipe) id: number,

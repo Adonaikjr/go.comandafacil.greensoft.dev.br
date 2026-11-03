@@ -131,6 +131,7 @@ export class OrdersController {
       dto.subTotal,
       dto.taxTotal,
       dto.total,
+      dto.paymentTypeId,
     );
     await this.orders.completeAndPay(tenantId, dto.orderIds, invoiceId);
     return { success: true, message: 'Order Completed Successfully!' };

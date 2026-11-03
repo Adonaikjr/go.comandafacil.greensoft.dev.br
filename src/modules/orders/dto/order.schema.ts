@@ -26,10 +26,14 @@ export const createOrderSchema = z.object({
 });
 export type CreateOrderDto = z.infer<typeof createOrderSchema>;
 
+// Opcional: o web e versoes antigas do app nao mandam, e a fatura fica sem forma.
+const paymentTypeId = z.coerce.number().int().positive().nullish();
+
 export const createOrderAndInvoiceSchema = createOrderSchema.extend({
   netTotal: z.coerce.number(),
   taxTotal: z.coerce.number(),
   total: z.coerce.number(),
+  paymentTypeId,
 });
 export type CreateOrderAndInvoiceDto = z.infer<
   typeof createOrderAndInvoiceSchema
@@ -46,6 +50,7 @@ export const payOrdersSchema = orderIdsSchema.extend({
   subTotal: z.coerce.number(),
   taxTotal: z.coerce.number(),
   total: z.coerce.number(),
+  paymentTypeId,
 });
 export type PayOrdersDto = z.infer<typeof payOrdersSchema>;
 

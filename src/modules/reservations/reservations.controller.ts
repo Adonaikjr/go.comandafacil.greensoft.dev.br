@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { TenantId } from '../../common/decorators/current-user.decorator.js';
+import { RequiresPro } from '../../common/decorators/requires-pro.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
 import { ZodBody, ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
@@ -39,6 +40,7 @@ const VIEW = [
 // Rotas de backend-legado/src/routes/reservation.routes.js
 @ApiTags('reservations')
 @ApiCookieAuth('accessToken')
+@RequiresPro()
 @Controller('reservations')
 export class ReservationsController {
   constructor(

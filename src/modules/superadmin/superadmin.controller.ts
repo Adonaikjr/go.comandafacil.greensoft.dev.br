@@ -19,7 +19,6 @@ import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { ZodBody, ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard.js';
 import { flag, requiredText } from '../../common/zod/legacy.js';
@@ -95,7 +94,6 @@ interface SuperadminPayload {
 // Painel da Greensoft (backend-legado/src/routes/superadmin.routes.js)
 @ApiTags('superadmin')
 @ApiCookieAuth('accessToken')
-@SkipSubscription()
 @Controller('superadmin')
 export class SuperadminController {
   constructor(

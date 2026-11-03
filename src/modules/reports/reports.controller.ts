@@ -1,13 +1,18 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
-import { TenantId } from '../../common/decorators/current-user.decorator.js';
+import {
+  CurrentUser,
+  TenantId,
+} from '../../common/decorators/current-user.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
 import { ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
+import type { JwtPayload } from '../../common/types/jwt-payload.js';
 import {
   dateFilterQuerySchema,
   type DateFilterQuery,
 } from '../../common/utils/date-filter.js';
+import { assertPeriodAllowed } from '../../common/utils/plan.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { ReservationsService } from '../reservations/reservations.service.js';
 import { ReportsService } from './reports.service.js';
@@ -57,9 +62,11 @@ export class ReportsController {
   @Scopes(Scope.REPORTS)
   @ZodQuery(dateFilterQuerySchema)
   async reportsData(
-    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtPayload,
     @Query() period: DateFilterQuery,
   ) {
+    assertPeriodAllowed(user, period.type);
+    const tenantId = user.tenant_id;
     const [
       ordersCount,
       newCustomers,
@@ -72,6 +79,7 @@ export class ReportsController {
       topSellingItems,
       currency,
       revenueSeries,
+      paymentBreakdown,
     ] = await Promise.all([
       this.reports.ordersCount(tenantId, period),
       this.reports.newCustomersCount(tenantId, period),
@@ -84,6 +92,7 @@ export class ReportsController {
       this.reports.topSellingItems(tenantId, period),
       this.settings.getCurrency(tenantId),
       this.reports.revenueSeries(tenantId, period),
+      this.reports.paymentBreakdown(tenantId, period),
     ]);
     return {
       ordersCount,
@@ -97,6 +106,7 @@ export class ReportsController {
       revenueTotal,
       topSellingItems,
       revenueSeries,
+      paymentBreakdown,
     };
   }
 }

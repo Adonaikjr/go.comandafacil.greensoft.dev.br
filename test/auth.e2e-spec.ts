@@ -73,6 +73,8 @@ describe('Auth (e2e)', () => {
       .expect(200);
     expect(devices.body).toHaveLength(1);
     expect(devices.body[0].isMyDevice).toBe(true);
+    // O token de cada sessao nao pode vazar na listagem.
+    expect(devices.body[0]).not.toHaveProperty('refresh_token');
 
     const refreshed = await http()
       .post('/api/v1/auth/refresh-token')

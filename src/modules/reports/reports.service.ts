@@ -77,6 +77,24 @@ export class ReportsService {
     return this.invoicesAggregate('SUM(sub_total)', tenantId, period);
   }
 
+  // Fechamento do caixa por forma de pagamento. Faturas sem forma (antigas,
+  // ou de clientes que não mandam o campo) vêm agrupadas com título nulo.
+  async paymentBreakdown(tenantId: number, period: Period) {
+    const rows = await this.prisma.$queryRaw<
+      { title: string | null; invoices: bigint; total: unknown }[]
+    >`
+      SELECT payment_type_title AS title, COUNT(*) AS invoices, SUM(total) AS total
+      FROM invoices
+      WHERE tenant_id = ${tenantId} AND ${this.filter('created_at', period)}
+      GROUP BY payment_type_title
+      ORDER BY SUM(total) DESC`;
+    return rows.map((r) => ({
+      title: r.title,
+      invoices: Number(r.invoices),
+      total: r.total,
+    }));
+  }
+
   // Receita e número de faturas por hora (período de um dia) ou por dia
   async revenueSeries(tenantId: number, period: Period) {
     const granularity = seriesGranularity(period);

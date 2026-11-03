@@ -2,14 +2,20 @@ import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
-import { TenantId } from '../../common/decorators/current-user.decorator.js';
+import {
+  CurrentUser,
+  TenantId,
+} from '../../common/decorators/current-user.decorator.js';
+import { RequiresPro } from '../../common/decorators/requires-pro.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
 import { ZodBody, ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
+import type { JwtPayload } from '../../common/types/jwt-payload.js';
 import {
   dateFilterQuerySchema,
   type DateFilterQuery,
 } from '../../common/utils/date-filter.js';
+import { assertPeriodAllowed } from '../../common/utils/plan.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { OrdersService } from './orders.service.js';
@@ -33,7 +39,9 @@ export class InvoicesController {
     private readonly settings: SettingsService,
   ) {}
 
+  // A busca percorre o histórico inteiro
   @Get('search')
+  @RequiresPro()
   @ZodQuery(searchSchema)
   search(
     @TenantId() tenantId: number,
@@ -45,10 +53,11 @@ export class InvoicesController {
   @Get()
   @ZodQuery(dateFilterQuerySchema)
   list(
-    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtPayload,
     @Query() { type, from, to }: DateFilterQuery,
   ) {
-    return this.invoices.list(tenantId, type, from, to);
+    assertPeriodAllowed(user, type);
+    return this.invoices.list(user.tenant_id, type, from, to);
   }
 
   @Get('init')

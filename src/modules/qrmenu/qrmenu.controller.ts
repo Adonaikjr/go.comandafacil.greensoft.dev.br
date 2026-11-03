@@ -13,10 +13,12 @@ import { z } from 'zod';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { ZodBody } from '../../common/decorators/zod.decorator.js';
 import { optionalNumber, optionalText } from '../../common/zod/legacy.js';
+import { ProRequiredException } from '../../common/utils/plan.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { MenuItemsService } from '../menu-items/menu-items.service.js';
 import { cartItemSchema } from '../orders/dto/order.schema.js';
 import { QrMenuService } from './qrmenu.service.js';
+import { PushService } from '../push/push.service.js';
 
 const placeOrderSchema = z.object({
   deliveryType: optionalText,
@@ -40,11 +42,16 @@ export class QrMenuController {
     private readonly settings: SettingsService,
     private readonly menu: MenuItemsService,
     private readonly qrmenu: QrMenuService,
+    private readonly push: PushService,
   ) {}
 
   private async tenantFromCode(qrcode: string) {
     const tenantId = await this.settings.getTenantIdFromQRCode(qrcode);
     if (!tenantId) throw new NotFoundException('QR/Digital Menu not found!');
+    // Cardápio digital é do plano Pro
+    if (!(await this.qrmenu.tenantHasPro(tenantId))) {
+      throw new ProRequiredException('Cardápio digital indisponível.');
+    }
     return tenantId;
   }
 
@@ -82,6 +89,8 @@ export class QrMenuController {
       name: dto.customer?.name ?? null,
       tableId: dto.tableId || null,
     });
+    // Sem await: o cliente na mesa nao espera o push sair.
+    void this.push.notifyQrOrder(tenantId, dto.tableId || null);
     return { success: true, message: 'Order Placed Successfully', orderId };
   }
 }

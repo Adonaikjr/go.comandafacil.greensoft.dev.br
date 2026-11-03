@@ -8,7 +8,7 @@ import type { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 // Equivale a isSuperAdmin do legado: o token precisa ser de um superadmin
-// cadastrado (tabela superadmins). Use junto com @SkipSubscription().
+// cadastrado (tabela superadmins).
 @Injectable()
 export class SuperAdminGuard implements CanActivate {
   constructor(private readonly prisma: PrismaService) {}

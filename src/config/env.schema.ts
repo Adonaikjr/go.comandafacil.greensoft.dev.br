@@ -28,6 +28,9 @@ export const envSchema = z.object({
   STRIPE_SECRET: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
+  // Opcional: com o "enhanced security" do Expo Push ligado, o envio exige o token.
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_EMAIL: z.string().optional(),

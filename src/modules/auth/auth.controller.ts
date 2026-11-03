@@ -17,7 +17,6 @@ import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.schema.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { ZodBody, ZodResponse } from '../../common/decorators/zod.decorator.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.js';
@@ -47,7 +46,6 @@ import {
 
 // Rotas de backend-legado/src/routes/auth.routes.js (exceto Stripe → BillingController)
 @ApiTags('auth')
-@SkipSubscription()
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -186,7 +184,13 @@ export class AuthController {
   @Get('devices')
   @ApiOperation({ summary: 'Lista os dispositivos conectados' })
   devices(@CurrentUser() user: JwtPayload, @Req() req: Request) {
-    return this.auth.getDevices(user.username, req.cookies?.refreshToken);
+    // O web manda o refresh token no cookie; o app nativo nao usa cookie e
+    // manda no header, so para a API marcar qual aparelho e o dele.
+    const header = req.headers['x-refresh-token'];
+    const current =
+      req.cookies?.refreshToken ??
+      (typeof header === 'string' ? header : undefined);
+    return this.auth.getDevices(user.username, current);
   }
 
   @Public()

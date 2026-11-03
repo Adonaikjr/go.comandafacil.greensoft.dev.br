@@ -121,13 +121,15 @@ model invoice_sequences {
 }
 
 model invoices {
-  id         Int
-  created_at DateTime? @default(now()) @db.DateTime(0)
-  sub_total  Decimal?  @db.Decimal(10, 2)
-  tax_total  Decimal?  @db.Decimal(10, 2)
-  total      Decimal?  @db.Decimal(10, 2)
-  tenant_id  Int
-  tenants    tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "invoices_ibfk_1")
+  id                 Int
+  created_at         DateTime? @default(now()) @db.DateTime(0)
+  sub_total          Decimal?  @db.Decimal(10, 2)
+  tax_total          Decimal?  @db.Decimal(10, 2)
+  total              Decimal?  @db.Decimal(10, 2)
+  payment_type_id    Int?
+  payment_type_title String?   @db.VarChar(100)
+  tenant_id          Int
+  tenants            tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "invoices_ibfk_1")
 
   @@id([id, tenant_id])
   @@index([tenant_id], map: "tenant_id")
@@ -408,6 +410,7 @@ model tenants {
   order_items          order_items[]
   orders               orders[]
   payment_types        payment_types[]
+  push_tokens          push_tokens[]
   print_settings       print_settings?
   qr_order_items       qr_order_items[]
   qr_orders            qr_orders[]
@@ -595,4 +598,17 @@ enum inventory_movements_type {
   adjustment
   sale
   sale_return
+}
+
+/// Tokens de push do app (Expo), um por aparelho.
+model push_tokens {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  username   String   @db.VarChar(255)
+  token      String   @unique @db.VarChar(255)
+  platform   String?  @db.VarChar(10)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  tenants    tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
 }

@@ -13,11 +13,15 @@ import {
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
-import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator.js';
 import { ZodBody } from '../../common/decorators/zod.decorator.js';
 import { ApiImageUpload } from '../../common/decorators/api-image-upload.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.js';
+import {
+  FREE_MAX_USERS,
+  hasProAccess,
+  ProRequiredException,
+} from '../../common/utils/plan.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
 import { UsersService } from './users.service.js';
 import {
@@ -59,6 +63,14 @@ export class UsersController {
   @Scopes()
   @ZodBody(createUserSchema)
   async create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
+    if (
+      !hasProAccess(user) &&
+      (await this.users.count(user.tenant_id)) >= FREE_MAX_USERS
+    ) {
+      throw new ProRequiredException(
+        `O plano grátis permite até ${FREE_MAX_USERS} usuários. Equipe maior faz parte do plano Pro.`,
+      );
+    }
     await this.users.create(user.tenant_id, dto);
     return { success: true, message: 'User Added Successfully.' };
   }
@@ -101,7 +113,6 @@ export class UsersController {
 
   @Post('profile/photo')
   @HttpCode(200)
-  @SkipSubscription()
   @ApiImageUpload()
   async uploadPhoto(
     @CurrentUser() user: JwtPayload,

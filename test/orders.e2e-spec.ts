@@ -47,6 +47,7 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
       addons: [{ id: addonId }],
     });
     expect(init.body.paymentTypes).toHaveLength(1);
+    const cashId = init.body.paymentTypes[0].id;
 
     await t.post('/api/v1/pos/create-order').send({ cart: [] }).expect(400);
 
@@ -122,9 +123,26 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
       total: 175,
     });
 
+    // Forma de outra loja (ou inexistente) nao fecha a conta.
     await t
       .post('/api/v1/orders/complete-and-pay-order')
-      .send({ orderIds, subTotal: 160, taxTotal: 15, total: 175 })
+      .send({
+        orderIds,
+        subTotal: 160,
+        taxTotal: 15,
+        total: 175,
+        paymentTypeId: 999999,
+      })
+      .expect(400);
+    await t
+      .post('/api/v1/orders/complete-and-pay-order')
+      .send({
+        orderIds,
+        subTotal: 160,
+        taxTotal: 15,
+        total: 175,
+        paymentTypeId: cashId,
+      })
       .expect(200);
     expect((await t.get('/api/v1/orders').expect(200)).body).toEqual([]);
 
@@ -145,7 +163,35 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
     const firstInvoice = invoices.body.find(
       (i: { invoice_id: number }) => i.invoice_id === 1,
     );
-    expect(firstInvoice).toMatchObject({ total: '175.00', table_title: 'M1' });
+    expect(firstInvoice).toMatchObject({
+      total: '175.00',
+      table_title: 'M1',
+      payment_type_title: 'Dinheiro',
+    });
+    // Sem paymentTypeId (web, app antigo) a fatura fica sem forma.
+    const takeaway = invoices.body.find(
+      (i: { invoice_id: number }) => i.invoice_id === 2,
+    );
+    expect(takeaway.payment_type_title).toBeNull();
+
+    // A forma e copiada: renomear depois nao reescreve a fatura.
+    await t
+      .post(`/api/v1/settings/payment-types/${cashId}/update`)
+      .send({ title: 'Espécie', isActive: true })
+      .expect(200);
+    const after = await t.get('/api/v1/invoices?type=today').expect(200);
+    expect(
+      after.body.find((i: { invoice_id: number }) => i.invoice_id === 1)
+        .payment_type_title,
+    ).toBe('Dinheiro');
+
+    const reports = await t.get('/api/v1/reports?type=today').expect(200);
+    expect(reports.body.paymentBreakdown).toEqual(
+      expect.arrayContaining([
+        { title: 'Dinheiro', invoices: 1, total: '175.00' },
+        { title: null, invoices: 1, total: '55.00' },
+      ]),
+    );
     expect(firstInvoice.orders).toHaveLength(2);
 
     const details = await t

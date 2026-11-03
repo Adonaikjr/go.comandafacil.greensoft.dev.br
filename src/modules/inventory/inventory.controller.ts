@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { RequiresPro } from '../../common/decorators/requires-pro.decorator.js';
 import { Scopes } from '../../common/decorators/scopes.decorator.js';
 import { ZodBody, ZodQuery } from '../../common/decorators/zod.decorator.js';
 import { Scope } from '../../common/enums/scope.enum.js';
@@ -36,6 +37,7 @@ const MANAGE = [Scope.INVENTORY, Scope.MANAGE_INVENTORY];
 
 @ApiTags('inventory')
 @ApiCookieAuth('accessToken')
+@RequiresPro()
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}

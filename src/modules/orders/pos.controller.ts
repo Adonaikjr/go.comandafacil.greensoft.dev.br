@@ -110,6 +110,7 @@ export class PosController {
       dto.netTotal,
       dto.taxTotal,
       dto.total,
+      dto.paymentTypeId,
     );
     const result = await this.orders.createOrder(user.tenant_id, {
       ...toOrderInput(dto),

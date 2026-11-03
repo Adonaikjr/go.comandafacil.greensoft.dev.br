@@ -1,19 +1,13 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
-import { SKIP_SUBSCRIPTION_KEY } from '../decorators/skip-subscription.decorator.js';
+import { REQUIRES_PRO_KEY } from '../decorators/requires-pro.decorator.js';
 import type { JwtPayload } from '../types/jwt-payload.js';
+import { hasProAccess, ProRequiredException } from '../utils/plan.js';
 
-export const TRIAL_DAYS = 14;
-
-// Equivale a isSubscriptionActive do legado: assinatura ativa ou trial vigente.
+// Freemium: sem assinatura a loja continua usando o plano grátis. Só as rotas
+// marcadas com @RequiresPro() respondem 402. Limites dentro de uma rota (período
+// dos relatórios, tamanho da equipe) ficam no próprio controller.
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -22,33 +16,17 @@ export class SubscriptionGuard implements CanActivate {
     // Guards globais valem só para HTTP; o Socket.IO autentica no gateway
     if (context.getType() !== 'http') return true;
 
-    const skip =
-      this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]) ||
-      this.reflector.getAllAndOverride<boolean>(SKIP_SUBSCRIPTION_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]);
-    if (skip) return true;
+    const requiresPro = this.reflector.getAllAndOverride<boolean>(
+      REQUIRES_PRO_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (!requiresPro) return true;
 
     const { user } = context
       .switchToHttp()
       .getRequest<Request & { user: JwtPayload }>();
 
-    if (user.is_active == 1) return true;
-
-    if (user.trial_started_at) {
-      const trialEnd =
-        new Date(user.trial_started_at).getTime() +
-        TRIAL_DAYS * 24 * 60 * 60 * 1000;
-      if (Date.now() < trialEnd) return true;
-    }
-
-    throw new HttpException(
-      'Sua assinatura ou período de teste expirou!',
-      HttpStatus.PAYMENT_REQUIRED,
-    );
+    if (hasProAccess(user)) return true;
+    throw new ProRequiredException();
   }
 }

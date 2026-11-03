@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
@@ -211,12 +211,25 @@ export class OrdersService {
   }
 
   // Número de fatura sequencial por tenant (invoice_sequences, com lock)
-  createInvoice(
+  async createInvoice(
     tenantId: number,
     subTotal: number,
     taxTotal: number,
     total: number,
+    paymentTypeId?: number | null,
   ) {
+    // A forma precisa ser da loja; o título vai copiado para a fatura, para o
+    // histórico não mudar se ela for renomeada ou excluída depois.
+    const payment = paymentTypeId
+      ? await this.prisma.payment_types.findFirst({
+          where: { id: paymentTypeId, tenant_id: tenantId },
+          select: { id: true, title: true },
+        })
+      : null;
+    if (paymentTypeId && !payment) {
+      throw new BadRequestException('Forma de pagamento não encontrada.');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<{ sequence_no: number | null }[]>`
         SELECT sequence_no FROM invoice_sequences
@@ -229,6 +242,8 @@ export class OrdersService {
           sub_total: subTotal,
           tax_total: taxTotal,
           total,
+          payment_type_id: payment?.id ?? null,
+          payment_type_title: payment?.title?.slice(0, 100) ?? null,
           created_at: nowAsDbDateTime(),
           tenant_id: tenantId,
         },
