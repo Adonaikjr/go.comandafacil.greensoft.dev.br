@@ -25,15 +25,20 @@ import { deviceFromRequest } from '../../common/utils/device.js';
 import { AuthService } from './auth.service.js';
 import { AuthCookiesService } from './auth-cookies.service.js';
 import { TokenService } from './token.service.js';
-import { GoogleOAuthService } from './google-oauth.service.js';
+import {
+  GoogleOAuthService,
+  type GoogleAppState,
+} from './google-oauth.service.js';
 import {
   forgotPasswordSchema,
+  googleExchangeSchema,
   messageSchema,
   removeDeviceSchema,
   resetPasswordSchema,
   signInSchema,
   signUpSchema,
   type ForgotPasswordDto,
+  type GoogleExchangeDto,
   type RemoveDeviceDto,
   type ResetPasswordDto,
   type SignInDto,
@@ -218,9 +223,31 @@ export class AuthController {
 
   @Public()
   @Get('google')
-  @ApiOperation({ summary: 'Redireciona para o login do Google' })
-  googleAuth(@Res() res: Response) {
-    return res.redirect(this.google.getAuthUrl());
+  @ApiOperation({
+    summary: 'Redireciona para o login do Google',
+    description:
+      'Sem parâmetros: fluxo do PDV web (cookies + redirect ao frontend). ' +
+      'Com redirect_uri e code_challenge (PKCE S256): fluxo do app nativo, ' +
+      'que volta ao app com um código para POST /auth/google/exchange.',
+  })
+  googleAuth(
+    @Query('redirect_uri') redirectUri: string | undefined,
+    @Query('code_challenge') challenge: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (redirectUri === undefined && challenge === undefined) {
+      return res.redirect(this.google.getAuthUrl());
+    }
+    if (
+      !redirectUri ||
+      !this.google.isAppRedirect(redirectUri) ||
+      !challenge ||
+      !/^[A-Za-z0-9_-]{43}$/.test(challenge)
+    ) {
+      throw new BadRequestException('Parâmetros de login inválidos.');
+    }
+    const state = this.google.signAppState(redirectUri, challenge);
+    return res.redirect(this.google.getAuthUrl(state));
   }
 
   @Public()
@@ -228,24 +255,22 @@ export class AuthController {
   @ApiExcludeEndpoint()
   async googleCallback(
     @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    const appState = state ? this.google.verifyAppState(state) : null;
+    if (appState) return this.googleAppCallback(code, appState, res);
+
     const frontend = this.config.get('FRONTEND_DOMAIN', { infer: true });
     if (!code)
       return res.redirect(`${frontend}/login?error=google_auth_failed`);
 
     try {
-      const googleUser = await this.google.getUser(code);
-      if (!googleUser.email) {
+      const user = await this.googleSignIn(code);
+      if (!user) {
         return res.redirect(`${frontend}/login?error=google_no_email`);
       }
-
-      const user = await this.auth.signInOrSignUpWithGoogle(
-        googleUser.email,
-        googleUser.name ?? null,
-        googleUser.picture ?? null,
-      );
       await this.issueLoginTokens(user, req, res);
 
       const data = Buffer.from(JSON.stringify(user)).toString('base64');
@@ -254,6 +279,76 @@ export class AuthController {
       this.logger.error(error, 'Google OAuth error');
       return res.redirect(`${frontend}/login?error=google_auth_failed`);
     }
+  }
+
+  @Public()
+  @Post('google/exchange')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Troca o código do login Google do app nativo pelos tokens',
+  })
+  @ZodBody(googleExchangeSchema)
+  async googleExchange(
+    @Body() dto: GoogleExchangeDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const grant = this.google.verifyAppCode(dto.code, dto.code_verifier);
+    const user = grant
+      ? await this.auth.findUser(grant.username, grant.tenantId)
+      : null;
+    if (!user) {
+      throw new UnauthorizedException(
+        'Não foi possível entrar com o Google. Tente de novo.',
+      );
+    }
+
+    const accessToken = await this.issueLoginTokens(user, req, res);
+    return {
+      success: true,
+      message: 'Login realizado com sucesso.',
+      accessToken,
+      user,
+    };
+  }
+
+  private async googleAppCallback(
+    code: string | undefined,
+    appState: GoogleAppState,
+    res: Response,
+  ) {
+    const back = (params: Record<string, string>) =>
+      res.redirect(this.google.appRedirect(appState.redirectUri, params));
+
+    if (!code) return back({ error: 'google_auth_failed' });
+
+    try {
+      const user = await this.googleSignIn(code);
+      if (!user) return back({ error: 'google_no_email' });
+
+      return back({
+        code: this.google.signAppCode(
+          user.username,
+          user.tenant_id!,
+          appState.challenge,
+        ),
+      });
+    } catch (error) {
+      this.logger.error(error, 'Google OAuth error (app)');
+      return back({ error: 'google_auth_failed' });
+    }
+  }
+
+  // null quando o Google não devolve e-mail
+  private async googleSignIn(code: string) {
+    const googleUser = await this.google.getUser(code);
+    if (!googleUser.email) return null;
+
+    return this.auth.signInOrSignUpWithGoogle(
+      googleUser.email,
+      googleUser.name ?? null,
+      googleUser.picture ?? null,
+    );
   }
 
   private async issueLoginTokens(

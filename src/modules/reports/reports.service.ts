@@ -77,6 +77,31 @@ export class ReportsService {
     return this.invoicesAggregate('SUM(sub_total)', tenantId, period);
   }
 
+  // Receita e número de faturas por hora (período de um dia) ou por dia
+  async revenueSeries(tenantId: number, period: Period) {
+    const granularity = seriesGranularity(period);
+    const bucket =
+      granularity === 'hour'
+        ? Prisma.sql`HOUR(created_at)`
+        : Prisma.sql`DATE_FORMAT(created_at, '%Y-%m-%d')`;
+    const rows = await this.prisma.$queryRaw<
+      { bucket: unknown; revenue: unknown; invoices: unknown }[]
+    >`
+      SELECT ${bucket} AS bucket, SUM(total) AS revenue, COUNT(*) AS invoices
+      FROM invoices
+      WHERE tenant_id = ${tenantId} AND ${this.filter('created_at', period)}
+      GROUP BY bucket
+      ORDER BY bucket`;
+    return {
+      granularity,
+      points: rows.map((r) => ({
+        bucket: String(r.bucket),
+        revenue: Number(r.revenue ?? 0),
+        invoices: Number(r.invoices ?? 0),
+      })),
+    };
+  }
+
   // O dashboard limita o subselect a 50 itens, os relatórios não
   topSellingItems(tenantId: number, period: Period, limit?: number) {
     return this.prisma.$queryRaw<Record<string, unknown>[]>`
@@ -92,4 +117,14 @@ export class ReportsService {
       WHERE tenant_id = ${tenantId}
       ORDER BY oi_c.orders_count DESC`;
   }
+}
+
+function seriesGranularity(period: Period): 'hour' | 'day' {
+  if (['today', 'yesterday', 'tomorrow'].includes(period.type ?? '')) {
+    return 'hour';
+  }
+  if (period.type === 'custom' && period.from && period.from === period.to) {
+    return 'hour';
+  }
+  return 'day';
 }
