@@ -340,6 +340,7 @@ model store_details {
   is_qr_menu_enabled  Boolean? @default(false)
   unique_qr_code      String?  @db.VarChar(255)
   is_qr_order_enabled Boolean?
+  qr_menu_template    String?  @db.VarChar(30)
   tenants             tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "store_details_ibfk_1")
 }
 

@@ -37,6 +37,34 @@ describe('Settings (e2e)', () => {
     expect(second.body.uniqueQRCode).toBe(first.body.uniqueQRCode);
   });
 
+  it('escolhe o template do cardápio e mantém quando o campo não vem', async () => {
+    const before = await t.get('/api/v1/settings/store-setting').expect(200);
+    expect(before.body.qrMenuTemplate).toEqual(expect.any(String));
+
+    await t
+      .post('/api/v1/settings/store-setting')
+      .send({ storeName: 'Loja', qrMenuTemplate: 'inexistente' })
+      .expect(400);
+    await t
+      .post('/api/v1/settings/store-setting')
+      .send({ storeName: 'Loja', qrMenuTemplate: 'zen' })
+      .expect(200);
+    expect(
+      (await t.get('/api/v1/settings/store-setting').expect(200)).body
+        .qrMenuTemplate,
+    ).toBe('zen');
+
+    // PDV web salva sem o campo: nao pode voltar para o classico
+    await t
+      .post('/api/v1/settings/store-setting')
+      .send({ storeName: 'Loja' })
+      .expect(200);
+    expect(
+      (await t.get('/api/v1/settings/store-setting').expect(200)).body
+        .qrMenuTemplate,
+    ).toBe('zen');
+  });
+
   it('configurações de impressão', async () => {
     await t
       .post('/api/v1/settings/print-setting')

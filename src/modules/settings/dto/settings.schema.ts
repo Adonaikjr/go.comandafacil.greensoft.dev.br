@@ -7,6 +7,24 @@ import {
   requiredText,
 } from '../../../common/zod/legacy.js';
 
+// Layouts do cardapio digital (rotas do PDV web, green-food/src/App.jsx).
+// O link do QR continua /m/:codigo; o web redireciona para o escolhido.
+// 'm' e o classico.
+export const QR_MENU_TEMPLATES = [
+  'm',
+  'store',
+  'first-page',
+  'landing',
+  'cafe',
+  'neon',
+  'zen',
+  'street',
+  'tropical',
+  'noir',
+  'bento',
+  'dark',
+] as const;
+
 export const storeSettingsSchema = z.object({
   storeName: optionalText,
   address: optionalText,
@@ -15,6 +33,10 @@ export const storeSettingsSchema = z.object({
   currency: optionalText,
   isQRMenuEnabled: flag,
   isQROrderEnabled: flag,
+  // Ausente = mantem o atual (o PDV web nao envia este campo)
+  qrMenuTemplate: z
+    .enum(QR_MENU_TEMPLATES, { error: 'Template de cardápio inválido.' })
+    .optional(),
 });
 export type StoreSettingsDto = z.infer<typeof storeSettingsSchema>;
 

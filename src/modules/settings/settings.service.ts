@@ -69,6 +69,7 @@ export class SettingsService {
       isQRMenuEnabled: store?.is_qr_menu_enabled || false,
       isQROrderEnabled: store?.is_qr_order_enabled || false,
       uniqueQRCode: store?.unique_qr_code || null,
+      qrMenuTemplate: store?.qr_menu_template || 'm',
     };
   }
 
@@ -81,6 +82,7 @@ export class SettingsService {
       currency: dto.currency,
       is_qr_menu_enabled: dto.isQRMenuEnabled,
       is_qr_order_enabled: dto.isQROrderEnabled,
+      qr_menu_template: dto.qrMenuTemplate,
     };
     // O código do QR é gerado só uma vez, no primeiro cadastro
     await this.prisma.store_details.upsert({
