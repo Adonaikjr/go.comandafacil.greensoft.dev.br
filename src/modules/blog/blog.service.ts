@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.schema.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { GeminiService } from '../../integrations/ai/gemini.service.js';
+import { nowAsDbDateTime } from '../../common/utils/db-time.js';
 
 export interface CreatePostInput {
   title: string;
@@ -107,7 +108,7 @@ export class BlogService {
       excerpt: post.excerpt,
       content: post.content,
       author: post.author,
-      date: new Date(),
+      date: nowAsDbDateTime(),
       readTime: `${post.readingTime} min`,
       category: post.category,
       featured: Math.random() < 0.5,

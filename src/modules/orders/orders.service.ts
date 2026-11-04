@@ -6,6 +6,7 @@ import { InventoryService } from '../inventory/inventory.service.js';
 import { nowAsDbDateTime, todayString } from '../../common/utils/db-time.js';
 import type { CartItem } from './dto/order.schema.js';
 import { calculateSummary, type SummaryItem } from './order-summary.js';
+import { priceCart } from './cart-pricing.js';
 
 export interface OrderRow {
   id: number;
@@ -149,6 +150,17 @@ export class OrdersService {
     },
   ) {
     const today = todayString();
+    // Preço e posse dos itens conferidos no cardápio da loja (antes valia o
+    // preço enviado pelo cliente e aceitava item de outro tenant)
+    const cart = await priceCart(this.prisma, tenantId, input.cart);
+
+    // Garante a linha antes do lock: sem ela o FOR UPDATE não trava nada e
+    // dois primeiros pedidos simultâneos da loja davam deadlock. Fica fora da
+    // transação de propósito: o INSERT IGNORE de uma linha existente pega um
+    // lock compartilhado, que dentro da transação brigaria com o FOR UPDATE.
+    await this.prisma.$executeRaw`
+      INSERT IGNORE INTO token_sequences (tenant_id, sequence_no, last_updated)
+      VALUES (${tenantId}, 0, ${today})`;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<
@@ -176,7 +188,7 @@ export class OrdersService {
       });
 
       await tx.order_items.createMany({
-        data: input.cart.map((item) => ({
+        data: cart.map((item) => ({
           order_id: order.id,
           item_id: item.id,
           variant_id: item.variant_id,
@@ -190,7 +202,7 @@ export class OrdersService {
         })),
       });
 
-      await this.inventory.consumeForOrder(tx, tenantId, order.id, input.cart);
+      await this.inventory.consumeForOrder(tx, tenantId, order.id, cart);
 
       const lastUpdated = new Date(`${today}T00:00:00Z`);
       await tx.token_sequences.upsert({
@@ -229,6 +241,11 @@ export class OrdersService {
     if (paymentTypeId && !payment) {
       throw new BadRequestException('Forma de pagamento não encontrada.');
     }
+
+    // Mesma garantia da senha diária (ver createOrder), fora da transação
+    await this.prisma.$executeRaw`
+      INSERT IGNORE INTO invoice_sequences (tenant_id, sequence_no)
+      VALUES (${tenantId}, 0)`;
 
     return this.prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<{ sequence_no: number | null }[]>`
@@ -293,6 +310,8 @@ export class OrdersService {
         invoice_id: invoiceId,
       },
     });
+    // Com REALTIME_SERVER_EVENTS o backend avisa a cozinha/pedidos sozinho
+    this.realtime.emitToTenant(tenantId, 'order_update');
   }
 
   // ---- Pedidos via QR code (aguardando confirmação no POS) ----

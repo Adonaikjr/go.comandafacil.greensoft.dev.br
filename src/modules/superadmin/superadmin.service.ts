@@ -11,6 +11,8 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { dateFilterSql } from '../../common/utils/date-filter.js';
 import { Role } from '../../common/enums/role.enum.js';
+import { nowAsDbDateTime } from '../../common/utils/db-time.js';
+import { BillingService } from '../billing/billing.service.js';
 
 type Period = { type?: string; from?: string | null; to?: string | null };
 
@@ -19,6 +21,7 @@ export class SuperadminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
+    private readonly billing: BillingService,
   ) {}
 
   private filter(column: string, period: Period) {
@@ -56,6 +59,14 @@ export class SuperadminService {
     return this.prisma.tenants.count({ where: { is_active: 1 } });
   }
 
+  // Base do MRR/ARR: só quem tem assinatura no Stripe. Lojas ativadas à mão
+  // pelo painel não pagam e não entram na receita.
+  payingTenants() {
+    return this.prisma.tenants.count({
+      where: { is_active: 1, subscription_id: { not: null } },
+    });
+  }
+
   inactiveTenants() {
     return this.prisma.tenants.count({ where: { is_active: 0 } });
   }
@@ -74,22 +85,21 @@ export class SuperadminService {
     return Number(row?.orders ?? 0);
   }
 
-  // Volume em USD convertendo pela moeda de cada loja (exchange_rates)
+  // Volume em reais. O legado convertia para USD por exchange_rates, mas a
+  // tabela está vazia e o JOIN zerava o total; todas as lojas usam BRL.
   async salesVolume(period: Period) {
     const [row] = await this.prisma.$queryRaw<{ volume: unknown }[]>`
-      SELECT IFNULL(SUM(i.total * er.rate_to_usd), 0) AS volume
+      SELECT IFNULL(SUM(i.total), 0) AS volume
       FROM invoices i
-      LEFT JOIN store_details sd ON i.tenant_id = sd.tenant_id
-      LEFT JOIN exchange_rates er ON sd.currency = er.currency_code
       WHERE ${this.filter('i.created_at', period)}`;
-    return row?.volume ?? 0;
+    return Number(row?.volume ?? 0);
   }
 
   topSellingItems(period: Period) {
     return this.prisma.$queryRaw<Record<string, unknown>[]>`
       SELECT trending_items.tenant_id, t.name AS tenant_name, trending_items.item_id, mi.title, qty
       FROM (
-        SELECT tenant_id, item_id, COUNT(*) AS qty
+        SELECT tenant_id, item_id, CAST(SUM(quantity) AS SIGNED) AS qty
         FROM order_items
         WHERE ${this.filter('date', period)}
         GROUP BY item_id, tenant_id
@@ -125,14 +135,29 @@ export class SuperadminService {
     }
     if (query.type) conditions.push(this.filter('t.created_at', query));
 
-    const tenants = await this.prisma.$queryRaw<Record<string, unknown>[]>`
-      SELECT t.*, u.username AS email
-      FROM tenants t
-      LEFT JOIN users u ON t.id = u.tenant_id AND u.role = 'admin'
-      WHERE ${Prisma.join(conditions, ' AND ')}
-      ORDER BY t.id DESC
-      LIMIT ${limit} OFFSET ${(currentPage - 1) * limit}`;
-    return { tenants, currentPage, perPage: limit };
+    const where = Prisma.join(conditions, ' AND ');
+
+    const [tenants, [count]] = await Promise.all([
+      this.prisma.$queryRaw<Record<string, unknown>[]>`
+        SELECT t.*, u.username AS email
+        FROM tenants t
+        LEFT JOIN users u ON t.id = u.tenant_id AND u.role = 'admin'
+        WHERE ${where}
+        ORDER BY t.id DESC
+        LIMIT ${limit} OFFSET ${(currentPage - 1) * limit}`,
+      // Total com os mesmos filtros: a paginação da tela depende dele
+      this.prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT COUNT(DISTINCT t.id) AS total
+        FROM tenants t
+        LEFT JOIN users u ON t.id = u.tenant_id AND u.role = 'admin'
+        WHERE ${where}`,
+    ]);
+    return {
+      tenants,
+      total: Number(count?.total ?? 0),
+      currentPage,
+      perPage: limit,
+    };
   }
 
   tenantsByStatus(isActive: 0 | 1 | null) {
@@ -178,6 +203,7 @@ export class SuperadminService {
         }),
         this.prisma.users.count({ where: { tenant_id: tenantId } }),
       ]);
+    if (!tenantInfo) throw new NotFoundException('Tenant Not Found');
     return { tenantInfo, storeDetails, totalUsers, subscriptionHistory };
   }
 
@@ -202,6 +228,8 @@ export class SuperadminService {
       data: {
         name: input.name,
         is_active: input.isActive ? 1 : 0,
+        // Mesmo período de teste do cadastro pelo site
+        trial_started_at: nowAsDbDateTime(),
         users: {
           create: {
             username: input.email,
@@ -282,9 +310,24 @@ export class SuperadminService {
 
   async deleteTenant(tenantId: number) {
     await this.findTenantAdmin(tenantId);
+    // A cobrança tem que parar antes de a loja sumir (igual à exclusão de conta)
+    const { subscription_id } = await this.prisma.tenants.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { subscription_id: true },
+    });
+    if (subscription_id)
+      await this.billing.cancelSubscriptionIfActive(subscription_id);
+
     await this.prisma.$transaction([
       this.prisma.qr_order_items.deleteMany({ where: { tenant_id: tenantId } }),
       this.prisma.qr_orders.deleteMany({ where: { tenant_id: tenantId } }),
+      // Tabelas do iFood sem FK para tenants (não caem no CASCADE)
+      this.prisma.ifood_auth_tokens.deleteMany({
+        where: { tenant_id: tenantId },
+      }),
+      this.prisma.ifood_catalog_mapping.deleteMany({
+        where: { tenant_id: tenantId },
+      }),
       this.prisma.tenants.delete({ where: { id: tenantId } }),
     ]);
   }

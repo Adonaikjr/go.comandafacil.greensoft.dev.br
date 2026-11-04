@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type { Env } from '../../config/env.schema.js';
@@ -8,8 +8,17 @@ import { asDbDateTime, nowAsDbDateTime } from '../../common/utils/db-time.js';
 
 type SubscriptionStatus = 'created' | 'updated' | 'cancelled';
 
+// Status do Stripe que mantêm a loja liberada. `past_due` entra como carência
+// enquanto o Stripe tenta cobrar de novo; se as tentativas acabarem, a
+// assinatura vira `unpaid`/`canceled` e a loja é bloqueada.
+const ACTIVE_STATUSES = new Set<Stripe.Subscription.Status>([
+  'active',
+  'trialing',
+  'past_due',
+]);
+
 @Injectable()
-export class BillingService {
+export class BillingService implements OnModuleInit {
   private readonly logger = new Logger(BillingService.name);
 
   constructor(
@@ -17,6 +26,21 @@ export class BillingService {
     private readonly config: ConfigService<Env, true>,
     @Inject(STRIPE) private readonly stripe: Stripe,
   ) {}
+
+  private get isProduction() {
+    return this.config.get('NODE_ENV', { infer: true }) === 'production';
+  }
+
+  onModuleInit() {
+    if (
+      this.isProduction &&
+      !this.config.get('STRIPE_WEBHOOK_SECRET', { infer: true })
+    ) {
+      this.logger.error(
+        'STRIPE_WEBHOOK_SECRET não configurado: o webhook do Stripe vai recusar todos os eventos.',
+      );
+    }
+  }
 
   getSubscriptionDetails(tenantId: number) {
     return this.prisma.tenants.findUnique({
@@ -62,7 +86,11 @@ export class BillingService {
     const session = await this.stripe.checkout.sessions.create({
       billing_address_collection: 'auto',
       customer_email: email,
+      client_reference_id: String(tenantId),
       metadata: { tenant_id: String(tenantId) },
+      // O metadata da sessão não passa para a assinatura; é este que chega
+      // nos eventos customer.subscription.*
+      subscription_data: { metadata: { tenant_id: String(tenantId) } },
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${frontend}/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -78,6 +106,11 @@ export class BillingService {
   ): Stripe.Event {
     const secret = this.config.get('STRIPE_WEBHOOK_SECRET', { infer: true });
     if (!secret) {
+      // Sem o segredo não dá para saber se o evento veio do Stripe. Em
+      // produção isso liberaria loja sem pagamento, então recusa.
+      if (this.isProduction) {
+        throw new Error('STRIPE_WEBHOOK_SECRET não configurado');
+      }
       return JSON.parse(rawBody?.toString() ?? '{}') as Stripe.Event;
     }
     return this.stripe.webhooks.constructEvent(
@@ -108,20 +141,13 @@ export class BillingService {
         ? subscription.customer
         : subscription.customer.id;
 
-    let email: string | null = null;
-    try {
-      const customer = await this.stripe.customers.retrieve(customerId);
-      email = customer.deleted ? null : customer.email;
-    } catch (error) {
-      this.logger.error(error, 'Error getting customer from stripe');
+    const tenantId = await this.resolveTenant(subscription, customerId);
+    if (!tenantId) {
+      this.logger.warn(
+        `Assinatura ${subscription.id} sem loja correspondente (${event.type}).`,
+      );
+      return;
     }
-    if (!email) return;
-
-    const user = await this.prisma.users.findUnique({
-      where: { username: email },
-      select: { tenant_id: true },
-    });
-    if (!user?.tenant_id) return;
 
     const access = {
       start: toDbDate(start),
@@ -132,21 +158,57 @@ export class BillingService {
 
     switch (event.type) {
       case 'customer.subscription.created':
-        return this.updateAccess(user.tenant_id, 1, access, 'created');
+        return this.updateAccess(
+          tenantId,
+          ACTIVE_STATUSES.has(subscription.status) ? 1 : 0,
+          access,
+          'created',
+        );
       case 'customer.subscription.updated':
         return this.updateAccess(
-          user.tenant_id,
-          subscription.status === 'active' ? 1 : 0,
+          tenantId,
+          ACTIVE_STATUSES.has(subscription.status) ? 1 : 0,
           access,
           'updated',
         );
       case 'customer.subscription.deleted':
-        return this.updateAccess(user.tenant_id, 0, access, 'cancelled');
+        return this.updateAccess(tenantId, 0, access, 'cancelled');
       default:
         this.logger.log(
           `Subscription event ${event.type} (${subscription.status}).`,
         );
     }
+  }
+
+  // A loja vem do metadata da assinatura (checkouts novos). Para assinaturas
+  // antigas, sem metadata, cai no e-mail do cliente no Stripe, como no legado.
+  private async resolveTenant(
+    subscription: Stripe.Subscription,
+    customerId: string,
+  ): Promise<number | null> {
+    const fromMetadata = Number(subscription.metadata?.tenant_id);
+    if (Number.isInteger(fromMetadata) && fromMetadata > 0) {
+      const tenant = await this.prisma.tenants.findUnique({
+        where: { id: fromMetadata },
+        select: { id: true },
+      });
+      if (tenant) return tenant.id;
+    }
+
+    let email: string | null = null;
+    try {
+      const customer = await this.stripe.customers.retrieve(customerId);
+      email = customer.deleted ? null : customer.email;
+    } catch (error) {
+      this.logger.error(error, 'Error getting customer from stripe');
+    }
+    if (!email) return null;
+
+    const user = await this.prisma.users.findUnique({
+      where: { username: email },
+      select: { tenant_id: true },
+    });
+    return user?.tenant_id ?? null;
   }
 
   private async updateAccess(

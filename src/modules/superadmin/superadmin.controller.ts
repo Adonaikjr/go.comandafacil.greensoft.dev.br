@@ -56,15 +56,21 @@ const updateTenantSchema = z.object({
     .transform(Number),
 });
 
+// O web manda filtros vazios como a string "null" (`&from=${null}`)
+const nullableParam = z
+  .string()
+  .optional()
+  .transform((v) => (v && v !== 'null' ? v : undefined));
+
 const tenantsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).optional(),
     perPage: z.coerce.number().int().min(1).max(100).optional(),
     search: z.string().optional(),
     status: z.string().optional(),
-    type: z.string().optional(),
-    from: z.string().optional(),
-    to: z.string().optional(),
+    type: nullableParam,
+    from: nullableParam,
+    to: nullableParam,
   })
   .refine((q) => q.type !== 'custom' || (q.from && q.to), {
     message: 'Please provide required details from & to dates!',
@@ -230,19 +236,24 @@ export class SuperadminController {
   @UseGuards(SuperAdminGuard)
   async dashboard() {
     const today = { type: 'today' };
-    const [activeTenants, ordersProcessedToday, salesVolumeToday] =
-      await Promise.all([
-        this.superadmin.activeTenants(),
-        this.superadmin.ordersProcessed(today),
-        this.superadmin.salesVolume(today),
-      ]);
-    // O legado devolvia a contagem de tenants ativos como MRR e ARR
+    const [
+      activeTenants,
+      payingTenants,
+      ordersProcessedToday,
+      salesVolumeToday,
+    ] = await Promise.all([
+      this.superadmin.activeTenants(),
+      this.superadmin.payingTenants(),
+      this.superadmin.ordersProcessed(today),
+      this.superadmin.salesVolume(today),
+    ]);
+    // mrr/arr são a quantidade de assinantes; o web multiplica pelo preço
     return {
       activeTenants,
       ordersProcessedToday,
       salesVolumeToday,
-      mrr: activeTenants,
-      arr: activeTenants,
+      mrr: payingTenants,
+      arr: payingTenants,
     };
   }
 
@@ -319,12 +330,14 @@ export class SuperadminController {
   async reports(@Query() period: DateFilterQuery) {
     const [
       activeTenants,
+      payingTenants,
       totalCustomers,
       topSellingItems,
       salesVolume,
       ordersProcessed,
     ] = await Promise.all([
       this.superadmin.activeTenants(),
+      this.superadmin.payingTenants(),
       this.superadmin.totalCustomers(),
       this.superadmin.topSellingItems(period),
       this.superadmin.salesVolume(period),
@@ -332,8 +345,8 @@ export class SuperadminController {
     ]);
     return {
       activeTenants,
-      mrr: activeTenants,
-      arr: activeTenants,
+      mrr: payingTenants,
+      arr: payingTenants,
       totalCustomers,
       topSellingItems,
       salesVolume,

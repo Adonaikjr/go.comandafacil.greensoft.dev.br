@@ -75,9 +75,13 @@ describe('Push do pedido pelo QR (e2e)', () => {
       .expect(200);
 
     // O push sai sem bloquear a resposta: espera ele terminar.
-    await vi.waitFor(async () => {
-      expect(await t.prisma.push_tokens.count({ where: { token } })).toBe(0);
-    });
+    await vi.waitFor(
+      async () => {
+        expect(await t.prisma.push_tokens.count({ where: { token } })).toBe(0);
+        // O padrão (1 s) é curto para o banco de dev remoto
+      },
+      { timeout: 15_000, interval: 500 },
+    );
     expect(expoCalls).toHaveLength(1);
     expect(expoCalls[0].body).toEqual([
       expect.objectContaining({
