@@ -21,6 +21,28 @@ npm run start:dev
 - Socket.IO: mesma porta da API
 
 Requer Redis (`docker compose up -d redis`) para filas e Socket.IO.
+O MySQL de desenvolvimento é o remoto (`dev-db.greensoft.dev.br`); para subir um
+banco local use `docker compose --profile local-db up -d`.
+
+### Variáveis de ambiente
+
+O `.env.example` lista todas. As mais importantes:
+
+| Variável | Para quê |
+| --- | --- |
+| `DATABASE_URL` | Conexão MySQL usada pelo Prisma |
+| `REDIS_URL` | Filas (Bull) e Socket.IO |
+| `JWT_SECRET` · `JWT_EXPIRY` · `JWT_EXPIRY_REFRESH` | Tokens de sessão |
+| `PASSWORD_SALT` · `ENCRYPTION_KEY` | Segredos de hash de senha e de criptografia |
+| `FRONTEND_DOMAIN` · `FRONTEND_DOMAIN_COOKIE` · `CORS_EXTRA_ORIGINS` | CORS e cookies |
+| `STRIPE_SECRET` · `STRIPE_WEBHOOK_SECRET` | Assinaturas. Sem o webhook secret o webhook recusa todos os eventos |
+| `SMTP_*` | E-mails (recuperação de senha, faturas) |
+| `GEMINI_API_KEY` · `BLOG_AI_CRON` | Geração de conteúdo do blog |
+| `BULL_BOARD_USER` · `BULL_BOARD_PASSWORD` | Acesso ao painel de filas fora do superadmin |
+| `DELIVERY_POLL_INTERVAL_MS` | Intervalo do polling de entregas |
+| `KEETA_API_BASE` | Base da integração Keeta (ainda não usada pelo app móvel) |
+
+Nunca versione o `.env`. Em produção ele fica na VPS.
 
 ## Deploy no CloudPanel
 
@@ -62,12 +84,48 @@ O deploy usa uma chave SSH dedicada, sem senha SSH armazenada no workflow.
 Rotacione senhas/chaves que tenham sido compartilhadas em mensagens ou
 terminais.
 
+## Scripts
+
+| Comando | O que faz |
+| --- | --- |
+| `npm run start:dev` | API com recarga automática (`nest start --watch`) |
+| `npm run start:debug` | Igual, com depurador |
+| `npm run build` | `prisma generate` + `nest build` |
+| `npm run start:prod` | Roda `dist/main` (o que o PM2 executa) |
+| `npm run prisma:generate` · `prisma:migrate` · `prisma:status` | Cliente Prisma, migrations aplicadas, status das migrations |
+| `npm run data:migrate-legacy` | Importa dados do banco do `backend-legado` (`scripts/migrate-legacy-data.ts`) |
+| `npm run lint` · `npm run format` | oxlint e Prettier |
+
+## Módulos
+
+Cada pasta em `src/modules/` é um domínio com controller, service e DTOs Zod:
+
+| módulo | responsabilidade |
+| --- | --- |
+| `auth` · `users` · `account` | login, refresh, usuários da loja e exclusão de conta |
+| `settings` · `superadmin` | configurações da loja e painel do superadmin |
+| `billing` | assinatura Stripe, trial e plano (Pro e grátis) |
+| `menu-items` · `inventory` · `customers` | cardápio, estoque e clientes |
+| `orders` · `reservations` | pedidos, comandas e reservas |
+| `qrmenu` | cardápio por QR e pedidos vindos do QR |
+| `delivery` | integração de delivery |
+| `reports` | relatórios e faturas |
+| `push` | registro de aparelhos para notificações (Expo Push) |
+| `realtime` · `queues` | Socket.IO e filas (Bull Board em `/admin/queues`) |
+| `blog` · `health` | conteúdo do blog e healthcheck |
+
+Integrações externas ficam em `src/integrations/` (`ai`, `mail`, `storage`, `stripe`).
+
 ## Testes
 
 ```bash
-npm test            # unitários (src/**/*.spec.ts)
-npm run test:e2e    # e2e contra o banco do DATABASE_URL (cria e remove um tenant temporário)
+npm test                # unitários (src/**/*.spec.ts), vitest
+npm run test:cov        # unitários com cobertura
+npm run test:e2e        # e2e (test/*.e2e-spec.ts) contra o banco do DATABASE_URL (cria e remove um tenant temporário)
 ```
+
+Os e2e precisam de Redis e de um banco que o usuário do `DATABASE_URL` possa
+escrever. Não rode contra produção.
 
 ## Banco
 
