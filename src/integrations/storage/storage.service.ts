@@ -47,7 +47,9 @@ export class StorageService {
         'Não foi possível ler a imagem. Envie uma foto em JPG, PNG ou WEBP.',
       );
     }
-    return `/public/${relativePath}`;
+    // O arquivo é sobrescrito no mesmo caminho e servido com cache de 7 dias:
+    // sem a versão na URL, o navegador/app continuaria mostrando a foto antiga
+    return `/public/${relativePath}?v=${Date.now()}`;
   }
 
   async remove(relativePath: string) {
