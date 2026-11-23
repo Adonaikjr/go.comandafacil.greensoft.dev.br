@@ -21,7 +21,7 @@ model BlogPost {
   featured    Boolean    @default(false)
   views       Int        @default(0)
   image       String     @db.VarChar(500)
-  created_at  DateTime   @default(now())
+  created_at  DateTime   @default(dbgenerated("CURRENT_TIMESTAMP(3)"))
   updated_at  DateTime   @updatedAt
   blog_tag_id BlogTags[] @relation("BlogPostTags")
 }
@@ -29,7 +29,7 @@ model BlogPost {
 model BlogTags {
   id         String     @id @default(uuid())
   name       String     @unique
-  created_at DateTime   @default(now())
+  created_at DateTime   @default(dbgenerated("CURRENT_TIMESTAMP(3)"))
   updated_at DateTime   @updatedAt
   blogPosts  BlogPost[] @relation("BlogPostTags")
 }
@@ -50,8 +50,8 @@ model customers {
   birth_date DateTime?         @db.Date
   gender     customers_gender?
   is_member  Boolean?          @default(false)
-  created_at DateTime?         @default(now()) @db.DateTime(0)
-  update_at  DateTime?         @default(now()) @db.DateTime(0)
+  created_at DateTime?         @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
+  update_at  DateTime?         @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenant_id  Int
   tenants    tenants           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "customers_ibfk_1")
 
@@ -73,8 +73,8 @@ model ifood_auth_tokens {
   user_code                   String?   @db.VarChar(50)
   verification_url_complete   String?   @db.Text
   expires_at                  BigInt?
-  created_at                  DateTime? @default(now()) @db.Timestamp(0)
-  updated_at                  DateTime? @default(now()) @db.Timestamp(0)
+  created_at                  DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp(0)
+  updated_at                  DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp(0)
 }
 
 model ifood_catalog_mapping {
@@ -83,7 +83,7 @@ model ifood_catalog_mapping {
   local_type     ifood_catalog_mapping_local_type
   local_id       Int
   ifood_id       String?                          @db.VarChar(255)
-  last_synced_at DateTime?                        @default(now()) @db.Timestamp(0)
+  last_synced_at DateTime?                        @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp(0)
 
   @@unique([tenant_id, local_type, local_id], map: "uq_mapping")
 }
@@ -95,7 +95,7 @@ model ifood_credentials {
   client_secret String    @db.VarChar(500)
   merchant_id   String    @db.VarChar(255)
   is_active     Boolean   @default(true)
-  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  created_at    DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp(0)
   tenants       tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "ifood_credentials_tenant_fk")
 }
 
@@ -107,7 +107,7 @@ model ifood_orders {
   total          Decimal   @default(0.00) @db.Decimal(10, 2)
   status         String    @default("PLACED") @db.VarChar(100)
   raw_data       String?   @db.LongText
-  created_at     DateTime? @default(now()) @db.Timestamp(0)
+  created_at     DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp(0)
   tenants        tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "ifood_orders_tenant_fk")
 
   @@unique([ifood_order_id, tenant_id], map: "uq_ifood_order_tenant")
@@ -122,7 +122,7 @@ model invoice_sequences {
 
 model invoices {
   id                 Int
-  created_at         DateTime? @default(now()) @db.DateTime(0)
+  created_at         DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   sub_total          Decimal?  @db.Decimal(10, 2)
   tax_total          Decimal?  @db.Decimal(10, 2)
   total              Decimal?  @db.Decimal(10, 2)
@@ -189,7 +189,7 @@ model order_items {
   price      Decimal?            @db.Decimal(10, 2)
   quantity   Int?
   status     order_items_status? @default(created)
-  date       DateTime?           @default(now()) @db.DateTime(0)
+  date       DateTime?           @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   notes      String?             @db.VarChar(255)
   addons     String?             @db.MediumText
   tenant_id  Int?
@@ -200,7 +200,7 @@ model order_items {
 
 model orders {
   id             Int                    @id @default(autoincrement())
-  date           DateTime?              @default(now()) @db.DateTime(0)
+  date           DateTime?              @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   delivery_type  String?                @db.VarChar(90)
   customer_type  orders_customer_type?  @default(WALKIN)
   customer_id    String?                @db.VarChar(20)
@@ -224,7 +224,7 @@ model page_visitors {
   screen_resolution String?   @db.VarChar(30)
   language          String?   @db.VarChar(20)
   timezone          String?   @db.VarChar(100)
-  created_at        DateTime? @default(now()) @db.DateTime(0)
+  created_at        DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
 
   @@index([created_at], map: "idx_created_at")
   @@index([page], map: "idx_page")
@@ -261,7 +261,7 @@ model qr_order_items {
   price      Decimal?               @db.Decimal(10, 2)
   quantity   Int?
   status     qr_order_items_status? @default(created)
-  date       DateTime?              @default(now()) @db.DateTime(0)
+  date       DateTime?              @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   notes      String?                @db.VarChar(255)
   addons     String?                @db.MediumText
   tenant_id  Int?
@@ -272,7 +272,7 @@ model qr_order_items {
 
 model qr_orders {
   id             Int                       @id @default(autoincrement())
-  date           DateTime?                 @default(now()) @db.DateTime(0)
+  date           DateTime?                 @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   delivery_type  String?                   @db.VarChar(90)
   customer_type  qr_orders_customer_type?  @default(WALKIN)
   customer_id    String?                   @db.VarChar(20)
@@ -292,7 +292,7 @@ model refresh_tokens {
   device_ip       String?   @db.VarChar(50)
   device_name     String?   @db.VarChar(255)
   device_location String?   @db.VarChar(255)
-  created_at      DateTime? @default(now()) @db.DateTime(0)
+  created_at      DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   expiry          DateTime? @db.DateTime(0)
   device_id       Int       @id @default(autoincrement())
   tenant_id       Int?
@@ -311,8 +311,8 @@ model reservations {
   status       String?   @db.VarChar(100)
   notes        String?   @db.VarChar(500)
   people_count Int?
-  created_at   DateTime? @default(now()) @db.DateTime(0)
-  updated_at   DateTime? @default(now()) @db.DateTime(0)
+  created_at   DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
+  updated_at   DateTime? @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   unique_code  String?   @unique(map: "slug_index") @db.VarChar(20)
   tenant_id    Int?
   tenants      tenants?  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "reservations_ibfk_1")
@@ -358,7 +358,7 @@ model store_tables {
 model subscription_history {
   id         Int                          @id @default(autoincrement())
   tenant_id  Int?
-  created_at DateTime?                    @default(now()) @db.DateTime(0)
+  created_at DateTime?                    @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   starts_on  DateTime?                    @db.DateTime(0)
   expires_on DateTime?                    @db.DateTime(0)
   status     subscription_history_status?
@@ -392,7 +392,7 @@ model tenants {
   payment_customer_id  String?                @db.VarChar(255)
   subscription_start   DateTime?              @db.DateTime(0)
   subscription_end     DateTime?              @db.DateTime(0)
-  created_at           DateTime?              @default(now()) @db.DateTime(0)
+  created_at           DateTime?              @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   trial_started_at     DateTime?              @db.DateTime(0)
   plan_type            String                 @default("basic") @db.VarChar(20)
   categories           categories[]
@@ -532,7 +532,7 @@ model keeta_credentials {
   client_secret String   @db.VarChar(500)
   restaurant_id String   @db.VarChar(255)
   is_active     Boolean  @default(true)
-  created_at    DateTime @default(now()) @db.DateTime(0)
+  created_at    DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenants       tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "keeta_credentials_tenant_fk")
 }
 
@@ -544,7 +544,7 @@ model keeta_orders {
   total          Decimal  @default(0) @db.Decimal(10, 2)
   status         String   @default("PLACED") @db.VarChar(100)
   raw_data       String?  @db.LongText
-  created_at     DateTime @default(now()) @db.DateTime(0)
+  created_at     DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenants        tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, map: "keeta_orders_tenant_fk")
 
   @@unique([keeta_order_id, tenant_id], map: "uq_keeta_order_tenant")
@@ -562,8 +562,8 @@ model inventory_items {
   min_quantity        Decimal               @default(0) @db.Decimal(12, 3)
   cost_price          Decimal?              @db.Decimal(10, 2)
   menu_item_id        Int?
-  created_at          DateTime              @default(now()) @db.DateTime(0)
-  updated_at          DateTime              @default(now()) @db.DateTime(0)
+  created_at          DateTime              @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
+  updated_at          DateTime              @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenants             tenants               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   menu_items          menu_items?           @relation(fields: [menu_item_id], references: [id], onDelete: SetNull)
   inventory_movements inventory_movements[]
@@ -584,7 +584,7 @@ model inventory_movements {
   order_id          Int?
   notes             String?                  @db.VarChar(255)
   username          String?                  @db.VarChar(255)
-  created_at        DateTime                 @default(now()) @db.DateTime(0)
+  created_at        DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenants           tenants                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   inventory_items   inventory_items          @relation(fields: [inventory_item_id], references: [id], onDelete: Cascade)
 
@@ -608,7 +608,7 @@ model push_tokens {
   username   String   @db.VarChar(255)
   token      String   @unique @db.VarChar(255)
   platform   String?  @db.VarChar(10)
-  created_at DateTime @default(now()) @db.DateTime(0)
+  created_at DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @db.DateTime(0)
   tenants    tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])

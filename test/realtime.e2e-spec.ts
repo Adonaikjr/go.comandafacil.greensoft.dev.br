@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { AddressInfo } from 'node:net';
 import { io, type Socket } from 'socket.io-client';
 import { createTenant, createTestApp } from './support/app.js';
@@ -25,6 +26,22 @@ const next = <T = unknown>(socket: Socket, event: string, timeout = 15_000) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// ConfigModule lê o env na importação; troca as flags direto nos services
+function setRealtimeFlags(
+  app: INestApplication,
+  flags: { legacyAuth: boolean; serverEvents: boolean },
+) {
+  Object.defineProperty(app.get(RealtimeService), 'serverEventsEnabled', {
+    get: () => flags.serverEvents,
+  });
+  const config = app.get(ConfigService);
+  const original = config.get.bind(config);
+  vi.spyOn(config, 'get').mockImplementation(((key: string, ...rest: []) =>
+    key === 'SOCKET_LEGACY_AUTH'
+      ? flags.legacyAuth
+      : original(key, ...rest)) as typeof config.get);
+}
+
 async function listen(app: INestApplication) {
   await app.listen(0);
   return `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
@@ -38,6 +55,7 @@ describe('Socket.IO (e2e)', () => {
 
     beforeAll(async () => {
       app = await createTestApp();
+      setRealtimeFlags(app, { legacyAuth: true, serverEvents: false });
       url = await listen(app);
     });
 
@@ -87,10 +105,7 @@ describe('Socket.IO (e2e)', () => {
 
     beforeAll(async () => {
       app = await createTestApp();
-      // ConfigModule lê o env na importação; liga a flag direto no service
-      Object.defineProperty(app.get(RealtimeService), 'serverEventsEnabled', {
-        get: () => true,
-      });
+      setRealtimeFlags(app, { legacyAuth: false, serverEvents: true });
       url = await listen(app);
     });
 
@@ -118,6 +133,30 @@ describe('Socket.IO (e2e)', () => {
           .expect(200);
         expect((await received).tokenNo).toBe(1);
       } finally {
+        await t.cleanup();
+      }
+    });
+
+    it('sem token, authenticate(tenantId) não entra na sala de ninguém', async () => {
+      const t = await createTenant(app, 'e2e-socket-noauth');
+      const intruder = await connect(url);
+      try {
+        intruder.emit('authenticate', t.tenantId);
+        await sleep(300);
+        const leaked = next(intruder, 'new_order', 2_000).then(
+          () => true,
+          () => false,
+        );
+        const item = await t
+          .post('/api/v1/menu-items/add')
+          .send({ title: 'Chá', price: 4 });
+        await t
+          .post('/api/v1/pos/create-order')
+          .send({ cart: [{ id: item.body.menuItemId, price: 4, quantity: 1 }] })
+          .expect(200);
+        expect(await leaked).toBe(false);
+      } finally {
+        intruder.disconnect();
         await t.cleanup();
       }
     });

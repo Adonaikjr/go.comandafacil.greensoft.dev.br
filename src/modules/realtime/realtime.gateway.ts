@@ -98,9 +98,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
   private relay(socket: AppSocket, event: string, args: unknown) {
     if (this.realtime.serverEventsEnabled) return;
     const [payload, tenantId] = asArgs(args);
-    const room = socket.data.user
-      ? String(socket.data.user.tenant_id)
-      : String(tenantId ?? '');
+    const user = socket.data.user;
+    // Sem token, só o modo legado aceita o tenant informado pelo cliente
+    if (!user && !this.config.get('SOCKET_LEGACY_AUTH', { infer: true })) {
+      return;
+    }
+    const room = user ? String(user.tenant_id) : String(tenantId ?? '');
     if (room) socket.to(room).emit(event, payload);
   }
 

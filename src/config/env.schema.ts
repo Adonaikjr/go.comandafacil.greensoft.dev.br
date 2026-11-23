@@ -45,11 +45,12 @@ export const envSchema = z.object({
 
   // Socket.IO — ver src/modules/realtime/realtime.gateway.ts
   // true: aceita `authenticate(tenantId)` sem token (comportamento do legado).
-  // Desligar quando o frontend enviar o cookie (withCredentials) ou auth.token.
-  SOCKET_LEGACY_AUTH: booleanEnv.default(true),
+  // O web (withCredentials) e o app (auth.token) já mandam o JWT, então o
+  // padrão é desligado.
+  SOCKET_LEGACY_AUTH: booleanEnv.default(false),
   // true: o backend emite new_order/new_qrorder/order_update sozinho e ignora
   // os eventos *_backend repassados pelo frontend.
-  REALTIME_SERVER_EVENTS: booleanEnv.default(false),
+  REALTIME_SERVER_EVENTS: booleanEnv.default(true),
 
   // Filas (BullMQ) — ver src/modules/queues
   // Painel em /admin/queues: superadmin logado ou basic auth com estes dados

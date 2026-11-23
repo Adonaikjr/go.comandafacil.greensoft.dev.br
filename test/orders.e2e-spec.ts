@@ -54,7 +54,7 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
     const cart = [
       {
         id: itemId,
-        price: 50,
+        price: 55,
         quantity: 2,
         notes: 'sem cebola',
         addons_ids: [addonId],
@@ -251,5 +251,36 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
     expect((await t.get('/api/v1/pos/qrorders/count')).body.totalQROrders).toBe(
       0,
     );
+  });
+
+  it('POS usa o preço do cardápio e recusa item de outra loja', async () => {
+    const other = await createTenant(app, 'e2e-orders-other');
+    try {
+      const foreign = await other
+        .post('/api/v1/menu-items/add')
+        .send({ title: 'Item alheio', price: 1 });
+      await t
+        .post('/api/v1/pos/create-order')
+        .send({
+          cart: [{ id: foreign.body.menuItemId, price: 1, quantity: 1 }],
+        })
+        .expect(400);
+
+      // Preço adulterado (0,01) vira o do cardápio: 50 + borda 5
+      const { body } = await t
+        .post('/api/v1/pos/create-order')
+        .send({
+          cart: [
+            { id: itemId, price: 0.01, quantity: 1, addons_ids: [addonId] },
+          ],
+        })
+        .expect(200);
+      const saved = await t.prisma.order_items.findFirst({
+        where: { order_id: body.orderId, tenant_id: t.tenantId },
+      });
+      expect(Number(saved?.price)).toBe(55);
+    } finally {
+      await other.cleanup();
+    }
   });
 });
