@@ -40,7 +40,10 @@ export class InvoicesController {
   ) {}
 
   // A busca percorre o histórico inteiro
+  // Historico de vendas so para quem tem FATURAS: o PDV (garcom) usa apenas
+  // init e orders para imprimir o recibo, nao o faturamento da loja.
   @Get('search')
+  @Scopes(Scope.INVOICES)
   @RequiresPro()
   @ZodQuery(searchSchema)
   search(
@@ -51,6 +54,7 @@ export class InvoicesController {
   }
 
   @Get()
+  @Scopes(Scope.INVOICES)
   @ZodQuery(dateFilterQuerySchema)
   list(
     @CurrentUser() user: JwtPayload,
