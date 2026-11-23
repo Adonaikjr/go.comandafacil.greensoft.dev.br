@@ -9,8 +9,10 @@ import { KitchenController } from './kitchen.controller.js';
 import { InvoicesController } from './invoices.controller.js';
 
 // POS, pedidos, cozinha e faturas compartilham o mesmo domínio (orders)
+import { PushModule } from '../push/push.module.js';
+
 @Module({
-  imports: [MenuItemsModule, InventoryModule],
+  imports: [MenuItemsModule, InventoryModule, PushModule],
   controllers: [
     PosController,
     OrdersController,

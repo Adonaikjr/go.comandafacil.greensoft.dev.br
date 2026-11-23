@@ -21,14 +21,20 @@ export class QueueSchedulerService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     if (this.config.get('NODE_ENV', { infer: true }) === 'test') return;
 
-    await this.delivery.upsertJobScheduler(
-      'poll-all',
-      { every: this.config.get('DELIVERY_POLL_INTERVAL_MS', { infer: true }) },
-      {
-        name: 'poll',
-        opts: { attempts: 1, removeOnComplete: 100, removeOnFail: 500 },
-      },
-    );
+    if (this.config.get('DELIVERY_POLL_ENABLED', { infer: true })) {
+      await this.delivery.upsertJobScheduler(
+        'poll-all',
+        {
+          every: this.config.get('DELIVERY_POLL_INTERVAL_MS', { infer: true }),
+        },
+        {
+          name: 'poll',
+          opts: { attempts: 1, removeOnComplete: 100, removeOnFail: 500 },
+        },
+      );
+    } else {
+      await this.delivery.removeJobScheduler('poll-all');
+    }
     await this.maintenance.upsertJobScheduler(
       'daily-cleanup',
       { pattern: '0 4 * * *', tz: 'America/Sao_Paulo' },

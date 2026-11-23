@@ -1,4 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import request from 'supertest';
 import { createTenant, createTestApp } from './support/app.js';
 
 describe('POS, pedidos, cozinha e faturas (e2e)', () => {
@@ -202,6 +204,41 @@ describe('POS, pedidos, cozinha e faturas (e2e)', () => {
 
     const search = await t.get('/api/v1/invoices/search?q=Bia').expect(200);
     expect(search.body[0].invoice_id).toBe(1);
+  });
+
+  it('garcom (PDV + PEDIDOS) imprime o recibo mas nao ve o historico de faturas', async () => {
+    const username = `e2e-garcom-${t.tenantId}`;
+    const scope = 'PDV,PEDIDOS';
+    await t.prisma.users.create({
+      data: {
+        username,
+        password: 'x',
+        role: 'user',
+        scope,
+        tenant_id: t.tenantId,
+      },
+    });
+    const token = app.get(JwtService).sign(
+      {
+        tenant_id: t.tenantId,
+        username,
+        name: 'garcom',
+        role: 'user',
+        scope,
+        is_active: 1,
+        plan_type: 'basic',
+      },
+      { issuer: process.env.FRONTEND_DOMAIN_COOKIE, expiresIn: '5m' },
+    );
+    const as = (r: request.Test) => r.set('Authorization', `Bearer ${token}`);
+    const http = request(app.getHttpServer());
+
+    await as(http.get('/api/v1/invoices?type=today')).expect(403);
+    await as(http.get('/api/v1/invoices/search?q=Bia')).expect(403);
+    await as(http.get('/api/v1/invoices/init')).expect(200);
+    await as(http.post('/api/v1/invoices/orders'))
+      .send({ orderIds: [1] })
+      .expect(200);
   });
 
   it('pedidos via QR code no POS', async () => {
