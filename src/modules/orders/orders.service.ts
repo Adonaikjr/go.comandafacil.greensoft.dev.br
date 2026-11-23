@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { PushService } from '../push/push.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { nowAsDbDateTime, todayString } from '../../common/utils/db-time.js';
@@ -65,6 +66,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
     private readonly inventory: InventoryService,
+    private readonly push: PushService,
   ) {}
 
   // Equivale ao par "SELECT pedidos + SELECT itens + SELECT adicionais" que o
@@ -219,6 +221,7 @@ export class OrdersService {
     }, TX_OPTIONS);
 
     this.realtime.emitToTenant(tenantId, 'new_order', result);
+    void this.push.notifyKitchenNewOrder(tenantId, result);
     return result;
   }
 
@@ -275,11 +278,14 @@ export class OrdersService {
   }
 
   async updateItemStatus(tenantId: number, itemId: number, status: string) {
-    await this.prisma.order_items.updateMany({
+    const { count } = await this.prisma.order_items.updateMany({
       where: { id: itemId, tenant_id: tenantId },
       data: { status: status as never },
     });
     this.realtime.emitToTenant(tenantId, 'order_update');
+    if (count > 0 && status === 'completed') {
+      void this.push.notifyItemReady(tenantId, itemId);
+    }
   }
 
   async setOrdersStatus(
