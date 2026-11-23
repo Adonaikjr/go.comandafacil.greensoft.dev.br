@@ -56,6 +56,8 @@ export const envSchema = z.object({
   // Painel em /admin/queues: superadmin logado ou basic auth com estes dados
   BULL_BOARD_USER: z.string().optional(),
   BULL_BOARD_PASSWORD: z.string().optional(),
+  // Polling automático de iFood/Keeta; false = desligado (remove o job do Redis)
+  DELIVERY_POLL_ENABLED: booleanEnv.default(false),
   DELIVERY_POLL_INTERVAL_MS: z.coerce.number().int().min(5000).default(30_000),
   // Cron para gerar post do blog com IA (ex.: "0 9 * * 1"); vazio = desligado
   BLOG_AI_CRON: z.string().optional(),
