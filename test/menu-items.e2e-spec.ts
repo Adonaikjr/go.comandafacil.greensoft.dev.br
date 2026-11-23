@@ -76,7 +76,9 @@ describe('Menu items (e2e)', () => {
       .post(`/api/v1/menu-items/update/${id}/upload-photo`)
       .attach('image', png, 'foto.png')
       .expect(200);
-    expect(upload.body.imageURL).toBe(`/public/${t.tenantId}/${id}.webp`);
+    expect(upload.body.imageURL).toMatch(
+      new RegExp(`^/public/${t.tenantId}/${id}\\.webp\\?v=\\d+$`),
+    );
     await request(app.getHttpServer())
       .get(upload.body.imageURL)
       .expect(200)
